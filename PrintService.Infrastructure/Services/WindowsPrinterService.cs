@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Printing;
 using System.Text;
@@ -10,7 +11,7 @@ namespace PrintService.Infrastructure.Services;
 /// <summary>
 /// تنفيذ واجهة IPrinterService للتفاعل المباشر مع طابعات نظام ويندوز.
 /// يدعم استكشاف الطابعات، وتحديد الطابعة الافتراضية، وتنفيذ الطباعة الصامتة
-/// سواء للأوامر الحرارية (RAW / ESC-POS) أو الصور العادية.
+/// سواء للأوامر الحرارية (RAW / ESC-POS) أو النصوص المنسقة أو ملفات PDF أو الصور.
 /// </summary>
 public class WindowsPrinterService : IPrinterService
 {
@@ -37,7 +38,6 @@ public class WindowsPrinterService : IPrinterService
 
         try
         {
-            // قراءة اسم الطابعة الافتراضية المحددة في إعدادات ويندوز
             var defaultSettings = new PrinterSettings();
             defaultPrinterName = defaultSettings.PrinterName ?? string.Empty;
         }
@@ -46,7 +46,6 @@ public class WindowsPrinterService : IPrinterService
             _logger.LogWarning(ex, "تعذر قراءة الطابعة الافتراضية من إعدادات النظام.");
         }
 
-        // استعراض كافة الطابعات المثبتة عبر PrinterSettings.InstalledPrinters
         foreach (string printerName in PrinterSettings.InstalledPrinters)
         {
             var info = new PrinterInfo
@@ -62,7 +61,6 @@ public class WindowsPrinterService : IPrinterService
                 var settings = new PrinterSettings { PrinterName = printerName };
                 if (settings.IsValid)
                 {
-                    // جلب أحجام الورق المتاحة والمعرفة لهذه الطابعة في ويندوز
                     foreach (PaperSize paperSize in settings.PaperSizes)
                     {
                         info.SupportedPaperSizes.Add(paperSize.PaperName);
@@ -137,7 +135,6 @@ public class WindowsPrinterService : IPrinterService
         byte[] payloadBytes;
         try
         {
-            // فك تشفير المحتوى من Base64 إلى مصفوفة بايتات
             payloadBytes = Convert.FromBase64String(request.ContentBase64);
         }
         catch (FormatException)
@@ -150,21 +147,58 @@ public class WindowsPrinterService : IPrinterService
 
         try
         {
+            // هل الطابعة طابعة افتراضية للملفات (مثل Microsoft Print to PDF أو doPDF)؟
+            bool isVirtualPdfPrinter = targetPrinter.Contains("Print to PDF", StringComparison.OrdinalIgnoreCase)
+                                    || targetPrinter.Contains("doPDF", StringComparison.OrdinalIgnoreCase);
+
+            // التحقق هل البيانات تبدأ بترويسة ملف PDF حقيقي (%PDF)
+            bool isRealPdf = payloadBytes.Length >= 4
+                          && payloadBytes[0] == 0x25 // %
+                          && payloadBytes[1] == 0x50 // P
+                          && payloadBytes[2] == 0x44 // D
+                          && payloadBytes[3] == 0x46; // F
+
             int copies = Math.Max(1, request.Copies);
 
             for (int i = 0; i < copies; i++)
             {
                 switch (request.DocumentType)
                 {
-                    case PrintDocumentType.RawEscPos:
                     case PrintDocumentType.Text:
+                        // طباعة النصوص المنسقة دائماً عبر محرك PrintDocument لضمان إنتاج مستند سليم وقابل للقراءة
+                        string textData = Encoding.UTF8.GetString(payloadBytes);
+                        PrintTextSilently(targetPrinter, textData, request.JobTitle);
+                        break;
+
+                    case PrintDocumentType.RawEscPos:
+                        if (isVirtualPdfPrinter)
+                        {
+                            // إذا كان المستخدم يختبر طابعة Microsoft Print to PDF، يتم تحويل النص تلقائياً
+                            // إلى PrintDocument لإنشاء ملف PDF سليم بدلاً من رمي بايتات خام تسبب "Failed to load PDF document"
+                            string rawText = Encoding.UTF8.GetString(payloadBytes);
+                            PrintTextSilently(targetPrinter, rawText, request.JobTitle);
+                        }
+                        else
+                        {
+                            // الطابعات الحرارية الحقيقية تستقبل بايتات ESC/POS مباشرة عبر winspool
+                            RawPrinterHelper.SendBytesToPrinter(targetPrinter, payloadBytes, request.JobTitle);
+                        }
+                        break;
+
                     case PrintDocumentType.Pdf:
-                        // إرسال بايتات الأوامر مباشرة إلى مخزن الطباعة Win32 Spooler دون وسيط رسومي
-                        RawPrinterHelper.SendBytesToPrinter(targetPrinter, payloadBytes, request.JobTitle);
+                        if (isRealPdf)
+                        {
+                            PrintPdfSilently(targetPrinter, payloadBytes, request.JobTitle);
+                        }
+                        else
+                        {
+                            // في حال تم إرسال نص عادي تحت تصنيف PDF، نقوم بطباعته كنص لإنشاء PDF صالح
+                            string fallbackText = Encoding.UTF8.GetString(payloadBytes);
+                            PrintTextSilently(targetPrinter, fallbackText, request.JobTitle);
+                        }
                         break;
 
                     case PrintDocumentType.Image:
-                        // طباعة الصور بصمت عبر محرك GDI+ وإلغاء نافذة المعاينة
                         PrintImageSilently(targetPrinter, payloadBytes, request.JobTitle);
                         break;
 
@@ -185,11 +219,106 @@ public class WindowsPrinterService : IPrinterService
     }
 
     /// <summary>
+    /// طباعة النصوص بصمت تام عبر محرك GDI+ لضمان توافقها الكامل مع كافة طابعات ويندوز (بما فيها طابعات الـ PDF الافتراضية).
+    /// </summary>
+    private static void PrintTextSilently(string printerName, string text, string jobTitle)
+    {
+        using var printDoc = new PrintDocument();
+        printDoc.PrinterSettings.PrinterName = printerName;
+        printDoc.DocumentName = jobTitle;
+        // إلغاء أي شاشات حوارية للطباعة
+        printDoc.PrintController = new StandardPrintController();
+
+        // استخدام خط أحادي المسافة مناسب للفواتير والجداول
+        using var font = new Font("Courier New", 9.5f, FontStyle.Regular);
+
+        var lines = text.Replace("\r\n", "\n").Split('\n');
+        int lineIndex = 0;
+
+        printDoc.PrintPage += (sender, e) =>
+        {
+            if (e.Graphics == null) return;
+
+            float lineHeight = font.GetHeight(e.Graphics) + 2f;
+            float y = e.MarginBounds.Top;
+            float x = e.MarginBounds.Left;
+
+            while (lineIndex < lines.Length)
+            {
+                if (y + lineHeight > e.MarginBounds.Bottom)
+                {
+                    e.HasMorePages = true;
+                    return;
+                }
+
+                e.Graphics.DrawString(lines[lineIndex], font, Brushes.Black, x, y);
+                y += lineHeight;
+                lineIndex++;
+            }
+
+            e.HasMorePages = false;
+        };
+
+        printDoc.Print();
+    }
+
+    /// <summary>
+    /// طباعة ملفات الـ PDF بصمت عبر أداة Edge المدمجة في ويندوز 10/11 أو مشغل النظام الافتراضي.
+    /// </summary>
+    private void PrintPdfSilently(string printerName, byte[] pdfBytes, string jobTitle)
+    {
+        string tempPdfPath = Path.Combine(Path.GetTempPath(), $"print_{Guid.NewGuid():N}.pdf");
+        File.WriteAllBytes(tempPdfPath, pdfBytes);
+
+        try
+        {
+            string edgePath = @"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe";
+            if (File.Exists(edgePath))
+            {
+                var pInfo = new ProcessStartInfo
+                {
+                    FileName = edgePath,
+                    Arguments = $"--headless --print-to-printer --printer-name=\"{printerName}\" \"{tempPdfPath}\"",
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                    UseShellExecute = false
+                };
+                using var proc = Process.Start(pInfo);
+                proc?.WaitForExit(10000);
+                return;
+            }
+
+            // خيار بديل عبر مشغل الويندوز الافتراضي
+            var shellInfo = new ProcessStartInfo
+            {
+                FileName = tempPdfPath,
+                Verb = "printto",
+                Arguments = $"\"{printerName}\"",
+                CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden,
+                UseShellExecute = true
+            };
+            using var shellProc = Process.Start(shellInfo);
+            shellProc?.WaitForExit(8000);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "تعذر تشغيل معالج PDF الخارجي، جاري التراجع للإرسال المباشر للمخزن");
+            RawPrinterHelper.SendBytesToPrinter(printerName, pdfBytes, jobTitle);
+        }
+        finally
+        {
+            // حذف الملف المؤقت بعد الانتهاء
+            Task.Delay(5000).ContinueWith(_ =>
+            {
+                try { if (File.Exists(tempPdfPath)) File.Delete(tempPdfPath); } catch { }
+            });
+        }
+    }
+
+    /// <summary>
     /// طباعة الصور النقطية بصمت تام باستخدام PrintDocument مع إلغاء مربع حوار حالة الطباعة.
     /// </summary>
-    /// <param name="printerName">اسم الطابعة.</param>
-    /// <param name="imageBytes">بايتات ملف الصورة.</param>
-    /// <param name="jobTitle">اسم المستند في قائمة الانتظار.</param>
     private static void PrintImageSilently(string printerName, byte[] imageBytes, string jobTitle)
     {
         using var memoryStream = new MemoryStream(imageBytes);
@@ -198,15 +327,12 @@ public class WindowsPrinterService : IPrinterService
         using var printDocument = new PrintDocument();
         printDocument.PrinterSettings.PrinterName = printerName;
         printDocument.DocumentName = jobTitle;
-        
-        // استخدام StandardPrintController هو السر لإلغاء أي نافذة حوارية أو تنبيه في ويندوز
         printDocument.PrintController = new StandardPrintController();
 
         printDocument.PrintPage += (sender, e) =>
         {
             if (e.Graphics != null)
             {
-                // ملاءمة الصورة داخل أبعاد وهوامش الصفحة
                 Rectangle m = e.MarginBounds;
                 e.Graphics.DrawImage(image, m);
             }
