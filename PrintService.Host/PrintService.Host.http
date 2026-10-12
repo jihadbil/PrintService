@@ -1,6 +1,29 @@
-@PrintService.Host_HostAddress = http://localhost:5176
+@PrintService.Host_HostAddress = http://127.0.0.1:5055
 
-GET {{PrintService.Host_HostAddress}}/weatherforecast/
+GET {{PrintService.Host_HostAddress}}/api/health
 Accept: application/json
 
 ###
+
+GET {{PrintService.Host_HostAddress}}/api/printers
+Accept: application/json
+
+###
+
+# Use the same jobId for retries. Printing is only sent when this request is executed.
+POST {{PrintService.Host_HostAddress}}/api/print
+Content-Type: application/json
+
+{
+  "systemId": "restaurant",
+  "jobId": "sample-invoice-001",
+  "documentType": 3,
+  "contentBase64": "SGVsbG8gUHJpbnRTZXJ2aWNl",
+  "copies": 1,
+  "jobTitle": "Sample invoice"
+}
+
+###
+
+GET {{PrintService.Host_HostAddress}}/api/jobs/sample-invoice-001?systemId=restaurant
+Accept: application/json

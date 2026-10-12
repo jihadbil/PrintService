@@ -2,4 +2,5 @@
   <Project Path="PrintService.Core/PrintService.Core.csproj" />
   <Project Path="PrintService.Host/PrintService.Host.csproj" />
   <Project Path="PrintService.Infrastructure/PrintService.Infrastructure.csproj" />
+  <Project Path="PrintService.Tests/PrintService.Tests.csproj" />
 </Solution>
