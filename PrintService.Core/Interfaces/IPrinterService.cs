@@ -7,6 +7,8 @@ namespace PrintService.Core.Interfaces;
 /// </summary>
 public interface IPrinterService
 {
+    Task<PrintJobResult?> GetJobAsync(string jobId, CancellationToken cancellationToken = default);
+    Task<PrintJobResult?> GetJobAsync(string jobId, string? systemId, CancellationToken cancellationToken = default);
     /// <summary>
     /// جلب قائمة بجميع الطابعات المثبتة في نظام ويندوز مع تفاصيلها وأحجام الورق المدعومة.
     /// </summary>

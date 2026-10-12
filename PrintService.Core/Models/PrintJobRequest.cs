@@ -5,6 +5,12 @@ namespace PrintService.Core.Models;
 /// </summary>
 public class PrintJobRequest
 {
+    /// <summary>Optional application namespace, e.g. restaurant or accounting. Not an authentication credential.</summary>
+    public string? SystemId { get; set; }
+
+    /// <summary>Optional layout for this job only; business preferences belong to the calling application.</summary>
+    public PrintPageOptions? Page { get; set; }
+
     /// <summary>
     /// المعرف الفريد لعملية الطباعة (يستخدم للتتبع ومنع تكرار معالجة نفس الطلب).
     /// </summary>

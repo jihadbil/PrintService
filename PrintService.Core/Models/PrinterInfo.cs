@@ -18,12 +18,16 @@ public class PrinterInfo
     /// <summary>
     /// يحدد ما إذا كانت الطابعة متصلة وجاهزة لاستقبال الأوامر.
     /// </summary>
-    public bool IsOnline { get; set; } = true;
+    public bool IsOnline { get; set; }
+
+    public bool IsReady { get; set; }
+
+    public bool StatusKnown { get; set; }
 
     /// <summary>
     /// الوصف النصي لحالة الطابعة (مثل: Ready, InvalidOrOffline).
     /// </summary>
-    public string Status { get; set; } = "Ready";
+    public string Status { get; set; } = "Unknown";
 
     /// <summary>
     /// قائمة بجميع أحجام الورق التي تدعمها هذه الطابعة (مثل: A4, Letter, 80mm).

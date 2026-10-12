@@ -5,6 +5,12 @@ namespace PrintService.Core.Models;
 /// </summary>
 public class PrintJobResult
 {
+    public string? SystemId { get; set; }
+    /// <summary>ValidationFailed, Queued, Processing, Submitted, Failed, Unknown, or Conflict.</summary>
+    public string Status { get; set; } = "ValidationFailed";
+    public int CompletedCopies { get; set; }
+    public List<uint> SpoolerJobIds { get; set; } = [];
+    public List<string> OutputFiles { get; set; } = [];
     /// <summary>
     /// يشير إلى ما إذا كانت عملية إرسال أمر الطباعة قد تمت بنجاح.
     /// </summary>
@@ -41,6 +47,7 @@ public class PrintJobResult
         return new PrintJobResult
         {
             Success = true,
+            Status = "Submitted",
             JobId = jobId,
             PrinterName = printerName,
             Message = message

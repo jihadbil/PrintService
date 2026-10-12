@@ -1,344 +1,266 @@
-using System.Diagnostics;
-using System.Drawing;
-using System.Drawing.Printing;
+using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using PrintService.Core.Interfaces;
 using PrintService.Core.Models;
+using SkiaSharp;
 
 namespace PrintService.Infrastructure.Services;
 
-/// <summary>
-/// تنفيذ واجهة IPrinterService للتفاعل المباشر مع طابعات نظام ويندوز.
-/// يدعم استكشاف الطابعات، وتحديد الطابعة الافتراضية، وتنفيذ الطباعة الصامتة
-/// سواء للأوامر الحرارية (RAW / ESC-POS) أو النصوص المنسقة أو ملفات PDF أو الصور.
-/// </summary>
-public class WindowsPrinterService : IPrinterService
+/// <summary>Validates, journals and serializes print jobs independently of the HTTP connection.</summary>
+public sealed class WindowsPrinterService : IPrinterService
 {
     private readonly ILogger<WindowsPrinterService> _logger;
+    private readonly IPrinterCatalog _catalog;
+    private readonly IPrintBackend _backend;
+    private readonly PrintJobStore _store;
+    private readonly PrintingOptions _options;
+    private readonly CancellationToken _shutdown;
+    private readonly SemaphoreSlim _gate = new(1);
+    private readonly SemaphoreSlim _workers;
+    private readonly Dictionary<string, (string Fingerprint, Task<PrintJobResult> Task)> _active = [];
+    private readonly Dictionary<string, SemaphoreSlim> _printerLocks = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>
-    /// منشئ الخدمة، يستقبل نظام التسجيل (Logger) لتسجيل الأحداث والأخطاء.
-    /// </summary>
-    /// <param name="logger">كائن تسجيل الأحداث.</param>
-    public WindowsPrinterService(ILogger<WindowsPrinterService> logger)
+    public WindowsPrinterService(ILogger<WindowsPrinterService> logger, IPrinterCatalog catalog,
+        IPrintBackend backend, PrintJobStore store, PrintingOptions options, CancellationToken shutdown = default)
     {
-        _logger = logger;
+        options.Validate();
+        (_logger, _catalog, _backend, _store, _options, _shutdown) = (logger, catalog, backend, store, options, shutdown);
+        _workers = new(options.MaxConcurrentPrinters);
     }
 
-    /// <summary>
-    /// قراءة واستكشاف جميع الطابعات المثبتة في نظام ويندوز مع التحقق من حالتها وأحجام الورق التي تدعمها.
-    /// </summary>
-    /// <param name="cancellationToken">رمز إلغاء العملية.</param>
-    /// <returns>قائمة الطابعات المثبتة في النظام.</returns>
-    public Task<IReadOnlyList<PrinterInfo>> GetPrintersAsync(CancellationToken cancellationToken = default)
-    {
-        var printers = new List<PrinterInfo>();
-        string defaultPrinterName = string.Empty;
+    public Task<IReadOnlyList<PrinterInfo>> GetPrintersAsync(CancellationToken cancellationToken = default) =>
+        _catalog.GetPrintersAsync(cancellationToken);
 
+    public async Task DrainAsync(CancellationToken ct)
+    {
+        await _gate.WaitAsync(ct);
+        Task[] tasks;
+        try { tasks = _active.Values.Select(value => (Task)value.Task).ToArray(); }
+        finally { _gate.Release(); }
+        await Task.WhenAll(tasks).WaitAsync(ct);
+    }
+
+    public async Task<PrinterInfo?> GetDefaultPrinterAsync(CancellationToken cancellationToken = default) =>
+        (await GetPrintersAsync(cancellationToken)).FirstOrDefault(p => p.IsDefault);
+
+    public Task<PrintJobResult?> GetJobAsync(string jobId, CancellationToken cancellationToken = default) =>
+        GetJobAsync(jobId, null, cancellationToken);
+
+    public async Task<PrintJobResult?> GetJobAsync(string jobId, string? systemId, CancellationToken cancellationToken = default)
+    {
+        await _gate.WaitAsync(cancellationToken);
         try
         {
-            var defaultSettings = new PrinterSettings();
-            defaultPrinterName = defaultSettings.PrinterName ?? string.Empty;
+            var entry = _store.Read(jobId, systemId);
+            if (entry is null) return null;
+            return Recover(entry.Result, _active.ContainsKey(PrintJobIdentity.StorageKey(jobId, systemId)));
         }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "تعذر قراءة الطابعة الافتراضية من إعدادات النظام.");
-        }
-
-        foreach (string printerName in PrinterSettings.InstalledPrinters)
-        {
-            var info = new PrinterInfo
-            {
-                Name = printerName,
-                IsDefault = string.Equals(printerName, defaultPrinterName, StringComparison.OrdinalIgnoreCase),
-                IsOnline = true,
-                Status = "Ready"
-            };
-
-            try
-            {
-                var settings = new PrinterSettings { PrinterName = printerName };
-                if (settings.IsValid)
-                {
-                    foreach (PaperSize paperSize in settings.PaperSizes)
-                    {
-                        info.SupportedPaperSizes.Add(paperSize.PaperName);
-                    }
-                }
-                else
-                {
-                    info.IsOnline = false;
-                    info.Status = "InvalidOrOffline";
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "تعذر قراءة أحجام الورق للطابعة {PrinterName}", printerName);
-            }
-
-            printers.Add(info);
-        }
-
-        return Task.FromResult<IReadOnlyList<PrinterInfo>>(printers);
+        finally { _gate.Release(); }
     }
 
-    /// <summary>
-    /// جلب بيانات الطابعة الافتراضية في النظام، أو أول طابعة متاحة.
-    /// </summary>
-    /// <param name="cancellationToken">رمز إلغاء العملية.</param>
-    /// <returns>بيانات الطابعة الافتراضية أو null.</returns>
-    public async Task<PrinterInfo?> GetDefaultPrinterAsync(CancellationToken cancellationToken = default)
-    {
-        var printers = await GetPrintersAsync(cancellationToken);
-        return printers.FirstOrDefault(p => p.IsDefault) ?? printers.FirstOrDefault();
-    }
-
-    /// <summary>
-    /// تنفيذ أمر الطباعة الصامت بالكامل بدون إظهار أي نافذة تأكيد للمستخدم.
-    /// </summary>
-    /// <param name="request">بيانات الطلب بما فيها اسم الطابعة، نوع المستند، والمحتوى المشفر Base64.</param>
-    /// <param name="cancellationToken">رمز إلغاء العملية.</param>
-    /// <returns>نتيجة تنفيذ العملية.</returns>
     public async Task<PrintJobResult> PrintAsync(PrintJobRequest request, CancellationToken cancellationToken = default)
     {
-        if (request == null)
+        if (request is null) return PrintJobResult.Fail("", null, "طلب الطباعة غير صالح.");
+        _shutdown.ThrowIfCancellationRequested();
+        // Detach mutable caller data before queueing.
+        var job = new PrintJobRequest
         {
-            return PrintJobResult.Fail(string.Empty, null, "طلب الطباعة غير صالح (null).");
-        }
-
-        string targetPrinter = request.PrinterName?.Trim() ?? string.Empty;
-
-        // إذا لم يحدد الطلب اسماً للطابعة، يتم التوجيه للطابعة الافتراضية للنظام
-        if (string.IsNullOrEmpty(targetPrinter))
-        {
-            var defaultPrinter = await GetDefaultPrinterAsync(cancellationToken);
-            if (defaultPrinter == null)
-            {
-                return PrintJobResult.Fail(request.JobId, null, "لم يتم العثور على أي طابعة مثبتة في النظام.");
-            }
-            targetPrinter = defaultPrinter.Name;
-        }
-
-        // التحقق من صحة وجود الطابعة في ويندوز
-        var printerSettings = new PrinterSettings { PrinterName = targetPrinter };
-        if (!printerSettings.IsValid)
-        {
-            return PrintJobResult.Fail(request.JobId, targetPrinter, $"الطابعة '{targetPrinter}' غير موجودة أو غير صالحة في النظام.");
-        }
-
-        if (string.IsNullOrWhiteSpace(request.ContentBase64))
-        {
-            return PrintJobResult.Fail(request.JobId, targetPrinter, "محتوى الطباعة (ContentBase64) فارغ.");
-        }
-
-        byte[] payloadBytes;
-        try
-        {
-            payloadBytes = Convert.FromBase64String(request.ContentBase64);
-        }
-        catch (FormatException)
-        {
-            return PrintJobResult.Fail(request.JobId, targetPrinter, "صيغة المحتوى غير صحيحة، يجب أن يكون Base64 صالحاً.");
-        }
-
-        _logger.LogInformation("بدء معالجة طلب الطباعة [{JobId}] للطابعة [{Printer}] بنوع [{DocType}] وحجم [{Size}] بايت",
-            request.JobId, targetPrinter, request.DocumentType, payloadBytes.Length);
-
-        try
-        {
-            // هل الطابعة طابعة افتراضية للملفات (مثل Microsoft Print to PDF أو doPDF)؟
-            bool isVirtualPdfPrinter = targetPrinter.Contains("Print to PDF", StringComparison.OrdinalIgnoreCase)
-                                    || targetPrinter.Contains("doPDF", StringComparison.OrdinalIgnoreCase);
-
-            // التحقق هل البيانات تبدأ بترويسة ملف PDF حقيقي (%PDF)
-            bool isRealPdf = payloadBytes.Length >= 4
-                          && payloadBytes[0] == 0x25 // %
-                          && payloadBytes[1] == 0x50 // P
-                          && payloadBytes[2] == 0x44 // D
-                          && payloadBytes[3] == 0x46; // F
-
-            int copies = Math.Max(1, request.Copies);
-
-            for (int i = 0; i < copies; i++)
-            {
-                switch (request.DocumentType)
-                {
-                    case PrintDocumentType.Text:
-                        // طباعة النصوص المنسقة دائماً عبر محرك PrintDocument لضمان إنتاج مستند سليم وقابل للقراءة
-                        string textData = Encoding.UTF8.GetString(payloadBytes);
-                        PrintTextSilently(targetPrinter, textData, request.JobTitle);
-                        break;
-
-                    case PrintDocumentType.RawEscPos:
-                        if (isVirtualPdfPrinter)
-                        {
-                            // إذا كان المستخدم يختبر طابعة Microsoft Print to PDF، يتم تحويل النص تلقائياً
-                            // إلى PrintDocument لإنشاء ملف PDF سليم بدلاً من رمي بايتات خام تسبب "Failed to load PDF document"
-                            string rawText = Encoding.UTF8.GetString(payloadBytes);
-                            PrintTextSilently(targetPrinter, rawText, request.JobTitle);
-                        }
-                        else
-                        {
-                            // الطابعات الحرارية الحقيقية تستقبل بايتات ESC/POS مباشرة عبر winspool
-                            RawPrinterHelper.SendBytesToPrinter(targetPrinter, payloadBytes, request.JobTitle);
-                        }
-                        break;
-
-                    case PrintDocumentType.Pdf:
-                        if (isRealPdf)
-                        {
-                            PrintPdfSilently(targetPrinter, payloadBytes, request.JobTitle);
-                        }
-                        else
-                        {
-                            // في حال تم إرسال نص عادي تحت تصنيف PDF، نقوم بطباعته كنص لإنشاء PDF صالح
-                            string fallbackText = Encoding.UTF8.GetString(payloadBytes);
-                            PrintTextSilently(targetPrinter, fallbackText, request.JobTitle);
-                        }
-                        break;
-
-                    case PrintDocumentType.Image:
-                        PrintImageSilently(targetPrinter, payloadBytes, request.JobTitle);
-                        break;
-
-                    default:
-                        RawPrinterHelper.SendBytesToPrinter(targetPrinter, payloadBytes, request.JobTitle);
-                        break;
-                }
-            }
-
-            _logger.LogInformation("تم إرسال أمر الطباعة [{JobId}] بنجاح إلى [{Printer}]", request.JobId, targetPrinter);
-            return PrintJobResult.Ok(request.JobId, targetPrinter, $"تم إرسال المستند بنجاح إلى الطابعة '{targetPrinter}'.");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "خطأ أثناء تنفيذ الطباعة [{JobId}] على الطابعة [{Printer}]", request.JobId, targetPrinter);
-            return PrintJobResult.Fail(request.JobId, targetPrinter, $"فشل في تنفيذ الطباعة: {ex.Message}");
-        }
-    }
-
-    /// <summary>
-    /// طباعة النصوص بصمت تام عبر محرك GDI+ لضمان توافقها الكامل مع كافة طابعات ويندوز (بما فيها طابعات الـ PDF الافتراضية).
-    /// </summary>
-    private static void PrintTextSilently(string printerName, string text, string jobTitle)
-    {
-        using var printDoc = new PrintDocument();
-        printDoc.PrinterSettings.PrinterName = printerName;
-        printDoc.DocumentName = jobTitle;
-        // إلغاء أي شاشات حوارية للطباعة
-        printDoc.PrintController = new StandardPrintController();
-
-        // استخدام خط أحادي المسافة مناسب للفواتير والجداول
-        using var font = new Font("Courier New", 9.5f, FontStyle.Regular);
-
-        var lines = text.Replace("\r\n", "\n").Split('\n');
-        int lineIndex = 0;
-
-        printDoc.PrintPage += (sender, e) =>
-        {
-            if (e.Graphics == null) return;
-
-            float lineHeight = font.GetHeight(e.Graphics) + 2f;
-            float y = e.MarginBounds.Top;
-            float x = e.MarginBounds.Left;
-
-            while (lineIndex < lines.Length)
-            {
-                if (y + lineHeight > e.MarginBounds.Bottom)
-                {
-                    e.HasMorePages = true;
-                    return;
-                }
-
-                e.Graphics.DrawString(lines[lineIndex], font, Brushes.Black, x, y);
-                y += lineHeight;
-                lineIndex++;
-            }
-
-            e.HasMorePages = false;
+            JobId = request.JobId, PrinterName = request.PrinterName?.Trim(), DocumentType = request.DocumentType,
+            ContentBase64 = request.ContentBase64, Copies = request.Copies, JobTitle = request.JobTitle,
+            SystemId = PrintJobIdentity.NormalizeSystemId(request.SystemId), Page = request.Page?.Normalize()
         };
-
-        printDoc.Print();
-    }
-
-    /// <summary>
-    /// طباعة ملفات الـ PDF بصمت عبر أداة Edge المدمجة في ويندوز 10/11 أو مشغل النظام الافتراضي.
-    /// </summary>
-    private void PrintPdfSilently(string printerName, byte[] pdfBytes, string jobTitle)
-    {
-        string tempPdfPath = Path.Combine(Path.GetTempPath(), $"print_{Guid.NewGuid():N}.pdf");
-        File.WriteAllBytes(tempPdfPath, pdfBytes);
-
+        var validation = Validate(job, out byte[] content);
+        if (validation is not null)
+        {
+            var invalid = PrintJobResult.Fail(job.JobId ?? "", job.PrinterName, validation);
+            invalid.SystemId = job.SystemId;
+            return invalid;
+        }
+        var fingerprintBytes = JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            Printer = job.PrinterName?.ToUpperInvariant(), job.DocumentType, job.Copies, job.JobTitle,
+            Content = Convert.ToHexString(SHA256.HashData(content))
+        });
+        // Preserve fingerprints of existing requests without layout overrides.
+        if (job.Page is not null)
+            fingerprintBytes = JsonSerializer.SerializeToUtf8Bytes(new { Request = Convert.ToHexString(SHA256.HashData(fingerprintBytes)), job.Page });
+        string fingerprint = Convert.ToHexString(SHA256.HashData(fingerprintBytes));
+        string key = PrintJobIdentity.StorageKey(job.JobId, job.SystemId);
+        Task<PrintJobResult> task;
+        await _gate.WaitAsync(cancellationToken);
         try
         {
-            string edgePath = @"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe";
-            if (File.Exists(edgePath))
+            if (_active.TryGetValue(key, out var active))
             {
-                var pInfo = new ProcessStartInfo
-                {
-                    FileName = edgePath,
-                    Arguments = $"--headless --print-to-printer --printer-name=\"{printerName}\" \"{tempPdfPath}\"",
-                    CreateNoWindow = true,
-                    WindowStyle = ProcessWindowStyle.Hidden,
-                    UseShellExecute = false
-                };
-                using var proc = Process.Start(pInfo);
-                proc?.WaitForExit(10000);
-                return;
+                if (active.Fingerprint != fingerprint) return Conflict(job);
+                task = active.Task;
             }
-
-            // خيار بديل عبر مشغل الويندوز الافتراضي
-            var shellInfo = new ProcessStartInfo
+            else
             {
-                FileName = tempPdfPath,
-                Verb = "printto",
-                Arguments = $"\"{printerName}\"",
-                CreateNoWindow = true,
-                WindowStyle = ProcessWindowStyle.Hidden,
-                UseShellExecute = true
-            };
-            using var shellProc = Process.Start(shellInfo);
-            shellProc?.WaitForExit(8000);
+                var existing = _store.Read(job.JobId, job.SystemId);
+                if (existing is not null)
+                    return existing.Fingerprint == fingerprint ? Recover(existing.Result, false) : Conflict(job);
+                if (_active.Count >= _options.MaxQueuedJobs)
+                {
+                    var busy = PrintJobResult.Fail(job.JobId, job.PrinterName, "قائمة الطباعة ممتلئة؛ حاول لاحقاً بالمعرف نفسه.");
+                    busy.Status = "Busy";
+                    busy.SystemId = job.SystemId;
+                    return busy;
+                }
+                cancellationToken.ThrowIfCancellationRequested();
+                var result = PrintJobResult.Fail(job.JobId, job.PrinterName, "المهمة في قائمة الانتظار.");
+                result.Status = "Queued";
+                result.SystemId = job.SystemId;
+                _store.Write(fingerprint, result);
+                task = Task.Run(() => ExecuteAsync(job, content, fingerprint, result));
+                _active.Add(key, (fingerprint, task));
+            }
+        }
+        finally { _gate.Release(); }
+        // A disconnected caller stops waiting; an accepted job is never silently resubmitted.
+        return await task.WaitAsync(cancellationToken);
+    }
+
+    private async Task<PrintJobResult> ExecuteAsync(PrintJobRequest job, byte[] content,
+        string fingerprint, PrintJobResult result)
+    {
+        SemaphoreSlim? printerLock = null;
+        bool printerAcquired = false, workerAcquired = false, submissionStarted = false;
+        try
+        {
+            var printers = await _catalog.GetPrintersAsync(_shutdown);
+            var printer = string.IsNullOrWhiteSpace(job.PrinterName)
+                ? printers.FirstOrDefault(p => p.IsDefault)
+                : printers.FirstOrDefault(p => string.Equals(p.Name, job.PrinterName, StringComparison.OrdinalIgnoreCase));
+            if (printer is null) throw new InvalidOperationException("الطابعة المطلوبة أو الافتراضية غير موجودة.");
+            result.PrinterName = printer.Name;
+            if (printer.StatusKnown && !printer.IsReady)
+                throw new InvalidOperationException($"الطابعة غير جاهزة: {printer.Status}");
+            await _gate.WaitAsync(_shutdown);
+            try
+            {
+                if (!_printerLocks.TryGetValue(printer.Name, out printerLock))
+                    _printerLocks.Add(printer.Name, printerLock = new SemaphoreSlim(1));
+            }
+            finally { _gate.Release(); }
+            // Wait for this printer before occupying a global worker slot.
+            await printerLock.WaitAsync(_shutdown);
+            printerAcquired = true;
+            await _workers.WaitAsync(_shutdown);
+            workerAcquired = true;
+            result.Status = "Processing";
+            result.Message = "جاري إرسال المستند إلى مخزن الطباعة.";
+            await SaveAsync(fingerprint, result);
+            for (int i = 0; i < job.Copies; i++)
+            {
+                _shutdown.ThrowIfCancellationRequested();
+                submissionStarted = true;
+                var submitted = await _backend.SubmitAsync(job, content, printer.Name, _shutdown);
+                result.CompletedCopies++;
+                if (submitted.SpoolerJobId is uint id) result.SpoolerJobIds.Add(id);
+                if (submitted.OutputFilePath is string file) result.OutputFiles.Add(file);
+                await SaveAsync(fingerprint, result);
+            }
+            result.Success = true;
+            result.Status = "Submitted";
+            result.Message = $"تم إرسال {result.CompletedCopies} نسخة إلى مخزن الطباعة؛ لا يعني ذلك اكتمال الطباعة على الورق.";
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "تعذر تشغيل معالج PDF الخارجي، جاري التراجع للإرسال المباشر للمخزن");
-            RawPrinterHelper.SendBytesToPrinter(printerName, pdfBytes, jobTitle);
+            if (ex is PrintSubmissionException { SpoolerJobId: uint id }) result.SpoolerJobIds.Add(id);
+            result.Success = false;
+            // Once the driver is called, failure/timeout may still have produced output.
+            result.Status = submissionStarted && (ex is not PrintPreparationException || result.CompletedCopies > 0)
+                ? "Unknown" : "Failed";
+            result.Message = $"تعذر إكمال المهمة: {ex.Message}. النسخ المؤكد إرسالها: {result.CompletedCopies}. لن تعاد تلقائياً.";
+            _logger.LogError(ex, "Print job {JobId} ended with {Status}", job.JobId, result.Status);
         }
         finally
         {
-            // حذف الملف المؤقت بعد الانتهاء
-            Task.Delay(5000).ContinueWith(_ =>
+            result.ProcessedAt = DateTime.UtcNow;
+            try { await SaveAsync(fingerprint, result); }
+            catch (Exception ex)
             {
-                try { if (File.Exists(tempPdfPath)) File.Delete(tempPdfPath); } catch { }
-            });
+                result.Success = false;
+                result.Status = "Unknown";
+                result.Message = "تعذر حفظ نتيجة المهمة؛ راجع مخزن الطباعة قبل إعادة المحاولة بمعرف جديد.";
+                _logger.LogError(ex, "Could not persist print result {JobId}", job.JobId);
+            }
+            if (workerAcquired) _workers.Release();
+            if (printerAcquired) printerLock!.Release();
+            await _gate.WaitAsync();
+            try { _active.Remove(PrintJobIdentity.StorageKey(job.JobId, job.SystemId)); }
+            finally { _gate.Release(); }
         }
+        return result;
     }
 
-    /// <summary>
-    /// طباعة الصور النقطية بصمت تام باستخدام PrintDocument مع إلغاء مربع حوار حالة الطباعة.
-    /// </summary>
-    private static void PrintImageSilently(string printerName, byte[] imageBytes, string jobTitle)
+    private async Task SaveAsync(string fingerprint, PrintJobResult result)
     {
-        using var memoryStream = new MemoryStream(imageBytes);
-        using var image = Image.FromStream(memoryStream);
+        await _gate.WaitAsync();
+        try { _store.Write(fingerprint, result); }
+        finally { _gate.Release(); }
+    }
 
-        using var printDocument = new PrintDocument();
-        printDocument.PrinterSettings.PrinterName = printerName;
-        printDocument.DocumentName = jobTitle;
-        printDocument.PrintController = new StandardPrintController();
-
-        printDocument.PrintPage += (sender, e) =>
+    private string? Validate(PrintJobRequest job, out byte[] content)
+    {
+        content = [];
+        if (!PrintJobIdentity.IsValidSystemId(job.SystemId))
+            return "SystemId يجب ألا يتجاوز 64 حرفاً من الأحرف الإنجليزية والأرقام و . _ -.";
+        if (job.Page?.Validate(job.DocumentType) is string pageError) return pageError;
+        if (string.IsNullOrWhiteSpace(job.JobId) || job.JobId.Length > 128 || job.JobId.Any(char.IsControl))
+            return "JobId مطلوب بطول لا يتجاوز 128 حرفاً.";
+        if (!Enum.IsDefined(job.DocumentType)) return "نوع المستند غير مدعوم.";
+        if (job.Copies < 1 || job.Copies > _options.MaxCopies) return $"عدد النسخ يجب أن يكون بين 1 و{_options.MaxCopies}.";
+        if (string.IsNullOrWhiteSpace(job.JobTitle) || job.JobTitle.Length > 200 || job.JobTitle.Any(char.IsControl))
+            return "عنوان المهمة مطلوب بطول لا يتجاوز 200 حرفاً ودون محارف تحكم.";
+        if (job.PrinterName?.Length > 256 || job.PrinterName?.Any(char.IsControl) == true)
+            return "اسم الطابعة غير صالح.";
+        if (string.IsNullOrWhiteSpace(job.ContentBase64)) return "محتوى الطباعة فارغ.";
+        if (job.ContentBase64.Length > ((_options.MaxDocumentBytes + 2L) / 3 * 4)) return "المستند يتجاوز الحجم المسموح.";
+        try { content = Convert.FromBase64String(job.ContentBase64); }
+        catch (FormatException) { return "محتوى Base64 غير صالح."; }
+        if (content.Length == 0 || content.Length > _options.MaxDocumentBytes) return "حجم المستند غير صالح.";
+        if (job.DocumentType == PrintDocumentType.Pdf && !content.AsSpan().StartsWith("%PDF-"u8))
+            return "يجب إرسال ملف PDF حقيقي؛ لا يتم تحويل النص تلقائياً إلى PDF.";
+        if (job.DocumentType == PrintDocumentType.Text)
         {
-            if (e.Graphics != null)
+            try
             {
-                Rectangle m = e.MarginBounds;
-                e.Graphics.DrawImage(image, m);
+                string text = new UTF8Encoding(false, true).GetString(content);
+                if (text.Length > 200_000 || text.Contains('\0')) return "النص طويل جداً أو يحتوي على محارف غير صالحة.";
             }
-            e.HasMorePages = false;
-        };
+            catch (DecoderFallbackException) { return "النص يجب أن يكون UTF-8 صالحاً."; }
+        }
+        if (job.DocumentType == PrintDocumentType.Image)
+        {
+            using var data = SKData.CreateCopy(content);
+            using var codec = SKCodec.Create(data);
+            if (codec is null || codec.Info.Width <= 0 || codec.Info.Height <= 0 ||
+                (long)codec.Info.Width * codec.Info.Height > _options.MaxImagePixels)
+                return "الصورة غير صالحة أو تتجاوز الأبعاد المسموحة.";
+        }
+        return null;
+    }
 
-        printDocument.Print();
+    private static PrintJobResult Conflict(PrintJobRequest job)
+    {
+        var result = PrintJobResult.Fail(job.JobId, job.PrinterName, "استُخدم JobId نفسه لمحتوى أو إعدادات مختلفة.");
+        result.Status = "Conflict";
+        result.SystemId = job.SystemId;
+        return result;
+    }
+
+    private static PrintJobResult Recover(PrintJobResult result, bool active)
+    {
+        if (!active && result.Status is "Queued" or "Processing")
+        {
+            result.Success = false;
+            result.Status = "Unknown";
+            result.Message = "توقفت الخدمة قبل حفظ النتيجة النهائية؛ راجع مخزن الطباعة. لن تعاد المهمة تلقائياً.";
+        }
+        return result;
     }
 }
