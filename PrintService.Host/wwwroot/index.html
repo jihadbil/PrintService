@@ -523,8 +523,12 @@
               <span class="info-value" id="infoOs" style="font-size: 0.85rem;">جاري القراءة...</span>
             </div>
             <div class="info-row">
+              <span class="info-label">محرك النصوص والصور:</span>
+              <span class="info-value" id="infoEngine" style="color: var(--success); font-weight: 700;">جاري القراءة...</span>
+            </div>
+            <div class="info-row">
               <span class="info-label">دعم CORS لـ React:</span>
-              <span class="info-value" style="color: var(--success); font-weight: 700;">مفعل بالكامل ★</span>
+              <span class="info-value">مفعّل للاختبار</span>
             </div>
             <div class="info-row" style="border-bottom: none;">
               <span class="info-label">وضع التشغيل:</span>
@@ -550,6 +554,12 @@
           </div>
 
           <form id="printForm">
+            <div class="form-group">
+              <label class="form-label" for="inputSystemId">معرف التطبيق</label>
+              <input class="form-control" id="inputSystemId" value="printservice-dashboard" maxlength="64" pattern="[a-zA-Z0-9._\-]+" required dir="ltr">
+              <button class="btn btn-secondary btn-sm" id="btnLoadSettings" type="button" style="margin-top: 0.5rem;">تحميل إعدادات التطبيق</button>
+              <p style="font-size: 0.8rem; color: var(--text-muted);">اختيار الطابعة والورق محفوظ لهذا التطبيق في هذا المتصفح على الجهاز.</p>
+            </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
               <div class="form-group">
                 <label class="form-label" for="selectPrinter">الطابعة المستهدفة</label>
@@ -581,6 +591,31 @@
             </div>
 
             <!-- رفع ملف اختياري (PDF أو صورة) -->
+            <fieldset id="pageOptions" style="border: 1px solid var(--border); border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
+              <legend style="font-size: 0.9rem;">خيارات هذه المهمة</legend>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                  <label class="form-label" for="selectPaper">مقاس الورق</label>
+                  <select class="form-select" id="selectPaper"><option value="">إعداد الطابعة الحالي</option><option value="#custom">مقاس مخصص</option></select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="selectOrientation">اتجاه الورق</label>
+                  <select class="form-select" id="selectOrientation"><option value="">إعداد الطابعة الحالي</option><option value="portrait">عمودي</option><option value="landscape">أفقي</option></select>
+                </div>
+              </div>
+              <div id="customPaperInputs" style="display: none; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group"><label class="form-label" for="inputPaperWidth">العرض بالمليمتر</label><input class="form-control" type="number" id="inputPaperWidth" min="20" max="1000" step="0.1" placeholder="80"></div>
+                <div class="form-group"><label class="form-label" for="inputPaperHeight">الارتفاع بالمليمتر</label><input class="form-control" type="number" id="inputPaperHeight" min="20" max="3000" step="0.1" placeholder="200"></div>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group"><label class="form-label" for="inputMargin">الهامش الأيسر بالمليمتر</label><input class="form-control" type="number" id="inputMargin" min="0" max="100" step="0.1" placeholder="افتراضي: 3"></div>
+                <div class="form-group"><label class="form-label" for="inputMarginRight">الهامش الأيمن بالمليمتر</label><input class="form-control" type="number" id="inputMarginRight" min="0" max="100" step="0.1" placeholder="افتراضي: 3"></div>
+                <div class="form-group"><label class="form-label" for="inputMarginTop">الهامش العلوي بالمليمتر</label><input class="form-control" type="number" id="inputMarginTop" min="0" max="100" step="0.1" placeholder="افتراضي: 3"></div>
+                <div class="form-group"><label class="form-label" for="inputMarginBottom">الهامش السفلي بالمليمتر</label><input class="form-control" type="number" id="inputMarginBottom" min="0" max="100" step="0.1" placeholder="افتراضي: 3"></div>
+              </div>
+              <p id="pageOptionsNote" style="font-size: 0.8rem; color: var(--text-muted);">تطبق على هذه المهمة فقط؛ لا تغيّر إعدادات Windows المشتركة.</p>
+              <button class="btn btn-secondary btn-sm" type="button" id="btnSaveSettings">حفظ إعدادات هذا التطبيق على الجهاز</button>
+            </fieldset>
             <div class="form-group" id="fileUploadContainer" style="display: none;">
               <label class="form-label">اختيار ملف حقيقي للتجربة (PDF أو صورة)</label>
               <div class="file-drop-zone" onclick="document.getElementById('fileInput').click()">
@@ -601,6 +636,7 @@
                 <span>🖨️</span>
                 <span>إرسال أمر الطباعة الآن (Silent Print)</span>
               </button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btnNewJob">بدء مهمة جديدة</button>
               <span id="printLoading" style="display: none; font-size: 0.875rem; color: var(--primary); font-weight: 700;">جاري إرسال الأمر للطابعة...</span>
             </div>
           </form>
@@ -631,17 +667,20 @@
           </div>
           <div class="code-box">
             <button class="code-copy-btn" id="btnCopyCode">نسخ الكود</button>
-<pre id="codeSnippet"><code>// استدعاء مباشر من تطبيق React
-await fetch("http://127.0.0.1:5055/api/print", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    printerName: "Microsoft Print to PDF",
-    documentType: 3, // 3: Text, 1: RawEscPos, 2: Pdf
-    contentBase64: btoa(unescape(encodeURIComponent("فاتورة مبيعات\nالإجمالي: 150 د.ل"))),
-    copies: 1
-  })
-});</code></pre>
+<pre id="codeSnippet"><code>// انسخ print-client.js إلى تطبيق React
+import { createPrintClient } from "./print-client.js";
+const client = createPrintClient({ systemId: "restaurant" });
+client.saveSettings({
+  printerName: "Microsoft Print to PDF",
+  copies: 1,
+  page: { paperName: "A4", margins: { leftMm: 5, rightMm: 5 } }
+});
+const job = client.createTextJob({
+  jobId: "invoice:123", // أعد استخدام المهمة نفسها للمحاولات
+  text: "فاتورة مبيعات\nالإجمالي: 150 د.ل"
+});
+const result = await client.print(job);
+// await client.getJob(job.jobId);</code></pre>
           </div>
         </div>
       </div>
@@ -654,7 +693,8 @@ await fetch("http://127.0.0.1:5055/api/print", {
     <span id="toastMsg">رسالة التنبيه</span>
   </div>
 
-  <script>
+  <script type="module">
+    import { createPrintClient } from "./print-client.js";
     const API_BASE = window.location.origin;
 
     const statusBadge = document.getElementById("statusBadge");
@@ -678,13 +718,156 @@ await fetch("http://127.0.0.1:5055/api/print", {
     const toastIcon = document.getElementById("toastIcon");
 
     let uploadedBase64 = null;
+    let uploadVersion = 0;
+    let maxDocumentBytes = 10485760;
+    let installedPrinters = [];
+    const systemInput = document.getElementById("inputSystemId");
+    const paperInput = document.getElementById("selectPaper");
+    const orientationInput = document.getElementById("selectOrientation");
+    const marginInputs = {
+      leftMm: document.getElementById("inputMargin"), rightMm: document.getElementById("inputMarginRight"),
+      topMm: document.getElementById("inputMarginTop"), bottomMm: document.getElementById("inputMarginBottom")
+    };
+    const widthInput = document.getElementById("inputPaperWidth");
+    const heightInput = document.getElementById("inputPaperHeight");
+    let client = createPrintClient({ systemId: "printservice-dashboard", agentUrl: API_BASE });
+    try {
+      systemInput.value = localStorage.getItem("printservice:dashboard:selected-system") || client.systemId;
+      client = createPrintClient({ systemId: systemInput.value, agentUrl: API_BASE });
+    } catch { systemInput.value = client.systemId; }
+    const pendingKey = () => `printServicePending:${client.systemId}`;
+
+    function pageFromInputs() {
+      if (selectDocType.value === "1") return null;
+      const page = {};
+      if (paperInput.value === "#custom") {
+        if (!widthInput.value || !heightInput.value) throw new Error("أدخل عرض الورق وارتفاعه المخصصين");
+        page.paperWidthMm = Number(widthInput.value);
+        page.paperHeightMm = Number(heightInput.value);
+      } else if (paperInput.value.startsWith("name:")) page.paperName = paperInput.value.slice(5);
+      if (selectDocType.value !== "2") {
+        if (orientationInput.value) page.landscape = orientationInput.value === "landscape";
+        const margins = {};
+        for (const [side, input] of Object.entries(marginInputs)) if (input.value !== "") margins[side] = Number(input.value);
+        if (Object.keys(margins).length) page.margins = margins;
+      }
+      return Object.keys(page).length ? page : null;
+    }
+
+    function renderPaperChoices(page = null) {
+      paperInput.replaceChildren(element("option", "", "إعداد الطابعة الحالي"));
+      paperInput.firstElementChild.value = "";
+      const printer = installedPrinters.find(p => p.name === selectPrinter.value);
+      for (const name of printer?.supportedPaperSizes || []) {
+        const option = element("option", "", name); option.value = "name:" + name; paperInput.append(option);
+      }
+      const custom = element("option", "", "مقاس مخصص"); custom.value = "#custom"; paperInput.append(custom);
+      if (page?.paperWidthMm != null) paperInput.value = "#custom";
+      else if (page?.paperName) {
+        const expected = "name:" + page.paperName;
+        if (![...paperInput.options].some(option => option.value === expected)) {
+          const missing = element("option", "", `${page.paperName} (المقاس المحفوظ غير متاح)`);
+          missing.value = expected; paperInput.append(missing);
+        }
+        paperInput.value = expected;
+      }
+      document.getElementById("customPaperInputs").style.display = paperInput.value === "#custom" ? "grid" : "none";
+    }
+
+    function applySavedSettings() {
+      const saved = client.getSettings();
+      selectPrinter.querySelectorAll("option[data-missing]").forEach(option => option.remove());
+      if (saved.printerName) {
+        if (![...selectPrinter.options].some(option => option.value === saved.printerName)) {
+          const missing = element("option", "", `${saved.printerName} (الطابعة المحفوظة غير متاحة)`);
+          missing.value = ""; missing.dataset.missing = "true"; selectPrinter.append(missing); missing.selected = true;
+        } else selectPrinter.value = saved.printerName;
+      } else {
+        const fallback = installedPrinters.find(p => p.isDefault) || installedPrinters[0];
+        selectPrinter.value = fallback?.name || "";
+      }
+      document.getElementById("inputCopies").value = saved.copies ?? 1;
+      orientationInput.value = saved.page?.landscape == null ? "" : saved.page.landscape ? "landscape" : "portrait";
+      for (const [side, input] of Object.entries(marginInputs)) input.value = saved.page?.margins?.[side] ?? "";
+      widthInput.value = saved.page?.paperWidthMm ?? "";
+      heightInput.value = saved.page?.paperHeightMm ?? "";
+      renderPaperChoices(saved.page);
+    }
+
+    function activateSystem() {
+      try {
+        client = createPrintClient({ systemId: systemInput.value, agentUrl: API_BASE });
+        systemInput.value = client.systemId;
+        localStorage.setItem("printservice:dashboard:selected-system", client.systemId);
+        applySavedSettings();
+        return true;
+      } catch (error) { systemInput.value = client.systemId; showToast(error.message, false); return false; }
+    }
+    systemInput.addEventListener("change", activateSystem);
+    document.getElementById("btnLoadSettings").addEventListener("click", activateSystem);
+    function contextIsCurrent() {
+      if (systemInput.value.trim().toLowerCase() === client.systemId) return true;
+      activateSystem();
+      showToast("تم تحميل إعدادات التطبيق المحدد؛ راجعها ثم أعد الطلب", false);
+      return false;
+    }
+    selectPrinter.addEventListener("change", () => {
+      let page = null; try { page = pageFromInputs(); } catch { }
+      renderPaperChoices(page);
+    });
+    paperInput.addEventListener("change", () => {
+      document.getElementById("customPaperInputs").style.display = paperInput.value === "#custom" ? "grid" : "none";
+    });
+    document.getElementById("btnSaveSettings").addEventListener("click", () => {
+      try {
+        if (!contextIsCurrent()) return;
+        if (!selectPrinter.value) throw new Error("اختر طابعة متاحة أولاً");
+        const copies = Number(document.getElementById("inputCopies").value);
+        if (!Number.isInteger(copies) || copies < 1 || copies > Number(document.getElementById("inputCopies").max)) throw new Error("عدد النسخ غير صالح");
+        client.saveSettings({ printerName: selectPrinter.value, copies, page: pageFromInputs() });
+        showToast("تم حفظ الإعدادات لهذا التطبيق في هذا المتصفح");
+      } catch (error) { showToast(error.message, false); }
+    });
+
+    function element(tag, className, text) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text !== undefined) node.textContent = text;
+      return node;
+    }
+
+    function resetUpload() {
+      uploadVersion++;
+      uploadedBase64 = null;
+      fileInput.value = "";
+      fileNameDisplay.textContent = "اضغط هنا لاختيار ملف من جهازك";
+    }
+
+    function updateInputMode() {
+      const files = selectDocType.value === "2" || selectDocType.value === "4";
+      fileUploadContainer.style.display = files ? "block" : "none";
+      textInputContainer.style.display = files ? "none" : "block";
+      fileInput.accept = selectDocType.value === "2" ? ".pdf,application/pdf" : ".png,.jpg,.jpeg,.bmp,.webp";
+      resetUpload();
+      const raw = selectDocType.value === "1", pdf = selectDocType.value === "2";
+      paperInput.disabled = raw;
+      orientationInput.disabled = raw || pdf;
+      for (const input of Object.values(marginInputs)) input.disabled = raw || pdf;
+      widthInput.disabled = raw || pdf;
+      heightInput.disabled = raw || pdf;
+      document.getElementById("pageOptionsNote").textContent = raw
+        ? "تنسيق ESC/POS يحدد داخل الأوامر الخام."
+        : pdf ? "هوامش PDF واتجاهه داخل الملف؛ اختر مقاس ورق قياسياً فقط."
+        : "تطبق على هذه المهمة فقط؛ لا تغيّر إعدادات Windows المشتركة.";
+    }
 
     function addLog(msg, type = "info") {
       const now = new Date().toTimeString().split(" ")[0];
       const div = document.createElement("div");
       div.className = "log-entry";
-      div.innerHTML = `<span class="log-time">[${now}]</span> <span class="log-${type}">${msg}</span>`;
+      div.append(element("span", "log-time", `[${now}] `), element("span", `log-${type}`, msg));
       logBox.appendChild(div);
+      while (logBox.children.length > 300) logBox.firstElementChild.remove();
       logBox.scrollTop = logBox.scrollHeight;
     }
 
@@ -698,27 +881,37 @@ await fetch("http://127.0.0.1:5055/api/print", {
     }
 
     // تبديل واجهة الإدخال عند اختيار PDF أو صور
-    selectDocType.addEventListener("change", () => {
-      const val = selectDocType.value;
-      if (val === "2" || val === "4") {
-        fileUploadContainer.style.display = "block";
-      } else {
-        fileUploadContainer.style.display = "none";
-        uploadedBase64 = null;
-        fileNameDisplay.innerText = "اضغط هنا لاختيار ملف من جهازك";
-      }
-    });
+    selectDocType.addEventListener("change", updateInputMode);
 
     fileInput.addEventListener("change", (e) => {
       const file = e.target.files[0];
+      uploadedBase64 = null;
+      const version = ++uploadVersion;
       if (!file) return;
+      if (file.size > maxDocumentBytes) {
+        resetUpload();
+        showToast("الملف يتجاوز الحجم المسموح", false);
+        return;
+      }
+      const isPdf = selectDocType.value === "2";
+      if (isPdf ? !/\.pdf$/i.test(file.name) : !/\.(png|jpe?g|bmp|webp)$/i.test(file.name)) {
+        resetUpload();
+        showToast("اختر ملفاً مطابقاً لنوع المستند", false);
+        return;
+      }
       fileNameDisplay.innerText = `تم اختيار: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
       const reader = new FileReader();
       reader.onload = () => {
+        if (version !== uploadVersion) return;
         // استخراج الجزء بعد فاصلة Base64
         const result = reader.result;
         uploadedBase64 = result.split(",")[1];
         addLog(`تم تحميل الملف [${file.name}] وتحويله إلى Base64 بنجاح.`, "success");
+      };
+      reader.onerror = () => {
+        if (version !== uploadVersion) return;
+        resetUpload();
+        showToast("تعذرت قراءة الملف", false);
       };
       reader.readAsDataURL(file);
     });
@@ -727,13 +920,15 @@ await fetch("http://127.0.0.1:5055/api/print", {
     async function checkHealth() {
       try {
         const res = await fetch(`${API_BASE}/api/health`);
-        if (!res.ok) throw new Error("استجابة غير صحيحة");
         const data = await res.json();
+        if (!res.ok) throw new Error(data.message || "خدمة Windows للطباعة متوقفة أو لا توجد طابعات");
         statusBadge.style.background = "var(--success-light)";
         statusBadge.style.color = "#047857";
         statusText.innerText = "الخدمة متصلة وجاهزة";
         document.getElementById("infoOs").innerText = data.os || "Windows";
         document.getElementById("infoVersion").innerText = data.version || "1.0.0";
+        document.getElementById("infoEngine").textContent = data.documentEngine || "غير معروف";
+        if (!data.pdfEngineAvailable) addLog("طباعة ملفات PDF تحتاج إلى إعداد SumatraPDF.", "info");
         addLog(`تم الاتصال بالخدمة بنجاح (OS: ${data.os})`, "success");
       } catch (err) {
         statusBadge.style.background = "var(--danger-light)";
@@ -750,13 +945,14 @@ await fetch("http://127.0.0.1:5055/api/print", {
         const res = await fetch(`${API_BASE}/api/printers`);
         if (!res.ok) throw new Error("فشل جلب الطابعات");
         const printers = await res.json();
+        installedPrinters = printers;
 
         printerCount.innerText = `(${printers.length} طابعة)`;
-        printersContainer.innerHTML = "";
-        selectPrinter.innerHTML = "";
+        printersContainer.replaceChildren();
+        selectPrinter.replaceChildren();
 
         if (printers.length === 0) {
-          printersContainer.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--warning); padding: 2rem;">لم يتم العثور على أي طابعة مثبتة في النظام.</div>`;
+          printersContainer.append(element("div", "", "لم يتم العثور على أي طابعة مثبتة في النظام."));
           return;
         }
 
@@ -769,44 +965,53 @@ await fetch("http://127.0.0.1:5055/api/print", {
 
           const card = document.createElement("div");
           card.className = "printer-item";
-          card.innerHTML = `
-            <div>
-              <div class="printer-header">
-                <span class="printer-name">${p.name}</span>
-                ${p.isDefault ? '<span class="badge-default">افتراضية ★</span>' : ''}
-              </div>
-              <div class="printer-status">
-                <span class="${p.isOnline ? 'dot-ready' : 'dot-offline'}"></span>
-                <span>${p.isOnline ? 'متصلة وجاهزة' : 'غير متصلة'}</span>
-              </div>
-              <div class="paper-tags">
-                ${(p.supportedPaperSizes || []).slice(0, 5).map(s => `<span class="paper-tag">${s}</span>`).join('')}
-                ${(p.supportedPaperSizes || []).length > 5 ? `<span class="paper-tag">+${p.supportedPaperSizes.length - 5}</span>` : ''}
-              </div>
-            </div>
-            <button class="btn btn-secondary btn-sm" onclick="quickTestPrint('${p.name.replace(/'/g, "\\'")}')" style="width: 100%;">
-              ⚡ اختبار سريع
-            </button>
-          `;
+          const details = element("div");
+          const header = element("div", "printer-header");
+          header.append(element("span", "printer-name", p.name));
+          if (p.isDefault) header.append(element("span", "badge-default", "افتراضية ★"));
+          const state = element("div", "printer-status");
+          state.append(element("span", p.isReady ? "dot-ready" : "dot-offline"),
+            element("span", "", p.statusKnown ? `حالة Windows: ${p.status}` : "الحالة غير معروفة"));
+          const tags = element("div", "paper-tags");
+          const sizes = p.supportedPaperSizes || [];
+          sizes.slice(0, 5).forEach(size => tags.append(element("span", "paper-tag", size)));
+          if (sizes.length > 5) tags.append(element("span", "paper-tag", `+${sizes.length - 5}`));
+          details.append(header, state, tags);
+          const test = element("button", "btn btn-secondary btn-sm", "⚡ اختبار سريع");
+          test.type = "button";
+          test.style.width = "100%";
+          test.addEventListener("click", async () => {
+            test.disabled = true;
+            try { await window.quickTestPrint(p.name); } finally { test.disabled = false; }
+          });
+          card.append(details, test);
           printersContainer.appendChild(card);
         });
 
+        applySavedSettings();
         addLog(`تم تحميل ${printers.length} طابعة بنجاح`, "success");
       } catch (err) {
-        printersContainer.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--danger); padding: 2rem;">خطأ في قراءة الطابعات: ${err.message}</div>`;
+        printersContainer.replaceChildren(element("div", "log-error", `خطأ في قراءة الطابعات: ${err.message}`));
+        selectPrinter.replaceChildren(element("option", "", "تعذر تحميل الطابعات"));
+        selectPrinter.firstElementChild.value = "";
         addLog(`خطأ في قراءة الطابعات: ${err.message}`, "error");
       }
     }
 
     // 3. اختبار سريع لطابعة معينة
     window.quickTestPrint = async function(printerName) {
+      if (!contextIsCurrent()) return;
       addLog(`إرسال اختبار ذاتي للطابعة: [${printerName}]...`, "info");
       try {
-        const res = await fetch(`${API_BASE}/api/print/test?printerName=${encodeURIComponent(printerName)}`, {
+        const key = `printServiceTest:${client.systemId}:${printerName}`;
+        const jobId = sessionStorage.getItem(key) || crypto.randomUUID();
+        sessionStorage.setItem(key, jobId);
+        const res = await fetch(`${API_BASE}/api/print/test?printerName=${encodeURIComponent(printerName)}&jobId=${encodeURIComponent(jobId)}&systemId=${encodeURIComponent(client.systemId)}`, {
           method: "POST"
         });
         const result = await res.json();
         if (result.success) {
+          sessionStorage.removeItem(key);
           addLog(`نجح الاختبار الذاتي على [${printerName}]`, "success");
           showToast(`تم إرسال أمر الاختبار بنجاح إلى ${printerName}`, true);
         } else {
@@ -822,6 +1027,7 @@ await fetch("http://127.0.0.1:5055/api/print", {
     // 4. إرسال أمر طباعة من المختبر
     printForm.addEventListener("submit", async (e) => {
       e.preventDefault();
+      if (!contextIsCurrent()) return;
       const printer = selectPrinter.value;
       const docType = parseInt(selectDocType.value);
       const copies = parseInt(document.getElementById("inputCopies").value) || 1;
@@ -831,11 +1037,19 @@ await fetch("http://127.0.0.1:5055/api/print", {
         showToast("يرجى اختيار الطابعة أولاً", false);
         return;
       }
+      if (!Number.isInteger(copies) || copies < 1 || copies > Number(document.getElementById("inputCopies").max)) {
+        showToast("عدد النسخ غير صالح", false);
+        return;
+      }
 
       let base64Payload = "";
 
       // إذا تم اختيار ملف مرفوع
-      if (uploadedBase64 && (docType === 2 || docType === 4)) {
+      if (docType === 2 || docType === 4) {
+        if (!uploadedBase64) {
+          showToast("اختر ملفاً وانتظر انتهاء قراءته", false);
+          return;
+        }
         base64Payload = uploadedBase64;
       } else {
         const text = textContent.value;
@@ -845,45 +1059,64 @@ await fetch("http://127.0.0.1:5055/api/print", {
         }
         // تشفير آمن للنصوص العربية بـ UTF-8 إلى Base64
         const utf8Bytes = new TextEncoder().encode(text);
+        if (utf8Bytes.length > maxDocumentBytes) {
+          showToast("النص يتجاوز الحجم المسموح", false);
+          return;
+        }
         let binary = '';
         utf8Bytes.forEach(b => binary += String.fromCharCode(b));
         base64Payload = btoa(binary);
       }
 
       const payload = {
+        systemId: client.systemId,
         printerName: printer,
         documentType: docType,
         contentBase64: base64Payload,
         copies: copies,
         jobTitle: jobTitle
       };
+      const submittingClient = client;
+      const submittingPendingKey = pendingKey();
+      try { payload.page = pageFromInputs(); } catch (error) { showToast(error.message, false); return; }
 
       const btnSubmit = document.getElementById("btnSubmitPrint");
       const loading = document.getElementById("printLoading");
       btnSubmit.disabled = true;
+      document.getElementById("btnNewJob").disabled = true;
+      systemInput.disabled = true;
+      document.getElementById("btnLoadSettings").disabled = true;
       loading.style.display = "inline";
 
       addLog(`إرسال أمر طباعة صامت إلى [${printer}] (${copies} نسخة)...`, "info");
 
       try {
-        const res = await fetch(`${API_BASE}/api/print`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
-        const result = await res.json();
+        const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(payload)));
+        const fingerprint = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, "0")).join("");
+        let pending = null;
+        try { pending = JSON.parse(sessionStorage.getItem(submittingPendingKey)); } catch { }
+        const jobId = pending?.fingerprint === fingerprint ? pending.jobId : crypto.randomUUID();
+        sessionStorage.setItem(submittingPendingKey, JSON.stringify({ fingerprint, jobId }));
+        const job = submittingClient.createJob({ ...payload, jobId });
+        const result = await submittingClient.print(job);
         if (result.success) {
-          addLog(`نجحت عملية الطباعة على [${printer}]! المعرف: ${result.jobId}`, "success");
+          sessionStorage.removeItem(submittingPendingKey);
+          addLog(`تم إرسال المهمة إلى مخزن الطباعة على [${printer}]. المعرف: ${result.jobId}`, "success");
+          (result.outputFiles || []).forEach(path => addLog(`ملف الإخراج: ${path}`, "success"));
           showToast("تم إرسال أمر الطباعة بنجاح وبصمت!", true);
         } else {
-          addLog(`فشلت الطباعة: ${result.message}`, "error");
+          addLog(`نتيجة المهمة [${result.jobId}]: ${result.message}`, "error");
+          if (result.status === "ValidationFailed") sessionStorage.removeItem(submittingPendingKey);
           showToast(result.message, false);
         }
       } catch (err) {
-        addLog(`خطأ اتصال أثناء الطباعة: ${err.message}`, "error");
+          addLog(`خطأ اتصال أثناء الطباعة: ${err.message}. أعد الطلب نفسه للتحقق دون تكرار المهمة.`, "error");
         showToast(err.message, false);
       } finally {
         btnSubmit.disabled = false;
+        document.getElementById("btnNewJob").disabled = false;
+        systemInput.disabled = false;
+        document.getElementById("btnLoadSettings").disabled = false;
         loading.style.display = "none";
       }
     });
@@ -917,7 +1150,7 @@ await fetch("http://127.0.0.1:5055/api/print", {
 `;
       // ضبط نوع المستند إلى Text تلقائياً لضمان التوافق مع Microsoft Print to PDF
       selectDocType.value = "3";
-      fileUploadContainer.style.display = "none";
+      updateInputMode();
       addLog("تم تجهيز نموذج فاتورة تجريبية وضبط النوع إلى Text التوافقي", "info");
       showToast("تم تجهيز نموذج الفاتورة بنجاح", true);
     });
@@ -927,17 +1160,36 @@ await fetch("http://127.0.0.1:5055/api/print", {
       const code = document.getElementById("codeSnippet").innerText;
       navigator.clipboard.writeText(code).then(() => {
         showToast("تم نسخ كود React إلى الحافظة!", true);
-      });
+      }).catch(() => showToast("تعذر النسخ إلى الحافظة", false));
     });
 
     btnRefreshPrinters.addEventListener("click", loadPrinters);
     btnClearLogs.addEventListener("click", () => {
-      logBox.innerHTML = '<div class="log-entry"><span class="log-time">[00:00:00]</span> <span class="log-info">تم مسح السجل.</span></div>';
+      logBox.replaceChildren();
+      addLog("تم مسح السجل.");
     });
+
+    document.getElementById("btnNewJob").addEventListener("click", () => {
+      sessionStorage.removeItem(pendingKey());
+      for (const key of Object.keys(sessionStorage)) if (key.startsWith(`printServiceTest:${client.systemId}:`)) sessionStorage.removeItem(key);
+      addLog("ستُنشأ مهمة جديدة في الطلب التالي. راجع المهمة السابقة أولاً إن كانت نتيجتها غير مؤكدة.");
+      showToast("جاهز لإنشاء مهمة جديدة");
+    });
+
+    async function loadLimits() {
+      try {
+        const response = await fetch(`${API_BASE}/api`);
+        if (!response.ok) return;
+        const info = await response.json();
+        maxDocumentBytes = info.maxDocumentBytes;
+        document.getElementById("inputCopies").max = info.maxCopies;
+      } catch { }
+    }
 
     // البدء الفوري
     checkHealth();
     loadPrinters();
+    loadLimits();
   </script>
 </body>
 </html>
