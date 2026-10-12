@@ -3,32 +3,38 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>لوحة تحكم وكيل الطباعة المحلي | PrintService Dashboard</title>
+  <title>لوحة تحكم وكيل الطباعة المحلي | PrintService</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-base: #090d16;
-      --bg-surface: #111827;
-      --bg-card: rgba(17, 24, 39, 0.75);
-      --border: rgba(255, 255, 255, 0.08);
-      --border-focus: rgba(99, 102, 241, 0.5);
-      --primary: #6366f1;
-      --primary-hover: #4f46e5;
-      --primary-glow: rgba(99, 102, 241, 0.25);
-      --accent: #06b6d4;
+      --bg-base: #f8fafc;
+      --bg-surface: #ffffff;
+      --bg-card: #ffffff;
+      --border: #e2e8f0;
+      --border-focus: #6366f1;
+      --primary: #4f46e5;
+      --primary-hover: #4338ca;
+      --primary-light: #eef2ff;
+      --accent: #0284c7;
+      --accent-light: #e0f2fe;
       --success: #10b981;
-      --success-glow: rgba(16, 185, 129, 0.2);
+      --success-light: #ecfdf5;
+      --success-border: #a7f3d0;
       --warning: #f59e0b;
+      --warning-light: #fffbeb;
       --danger: #ef4444;
-      --text-main: #f9fafb;
-      --text-muted: #9ca3af;
-      --text-dim: #6b7280;
+      --danger-light: #fef2f2;
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --text-dim: #94a3b8;
       --radius-sm: 8px;
-      --radius-md: 14px;
-      --radius-lg: 20px;
-      --shadow-card: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+      --shadow-card: 0 4px 20px -2px rgba(15, 23, 42, 0.05), 0 2px 6px -1px rgba(15, 23, 42, 0.02);
+      --shadow-hover: 0 10px 25px -5px rgba(15, 23, 42, 0.08);
     }
 
     * {
@@ -44,15 +50,15 @@
       min-height: 100vh;
       line-height: 1.6;
       background-image: 
-        radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.12) 0%, transparent 40%),
-        radial-gradient(circle at 85% 85%, rgba(6, 182, 212, 0.1) 0%, transparent 40%);
+        radial-gradient(circle at 10% 10%, rgba(79, 70, 229, 0.04) 0%, transparent 50%),
+        radial-gradient(circle at 90% 90%, rgba(2, 132, 199, 0.04) 0%, transparent 50%);
       background-attachment: fixed;
     }
 
     .container {
       max-width: 1240px;
       margin: 0 auto;
-      padding: 2rem 1.5rem;
+      padding: 2.5rem 1.5rem;
     }
 
     /* Header */
@@ -70,46 +76,47 @@
     .brand {
       display: flex;
       align-items: center;
-      gap: 1rem;
+      gap: 1.25rem;
     }
 
     .brand-icon {
-      width: 48px;
-      height: 48px;
+      width: 52px;
+      height: 52px;
       background: linear-gradient(135deg, var(--primary), var(--accent));
       border-radius: var(--radius-md);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.6rem;
-      box-shadow: 0 0 20px var(--primary-glow);
+      font-size: 1.75rem;
+      color: #fff;
+      box-shadow: 0 8px 16px -4px rgba(79, 70, 229, 0.3);
     }
 
     .brand-text h1 {
-      font-size: 1.5rem;
+      font-size: 1.6rem;
       font-weight: 800;
-      letter-spacing: -0.5px;
-      background: linear-gradient(90deg, #fff, #cbd5e1);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      color: var(--text-main);
+      letter-spacing: -0.3px;
     }
 
     .brand-text p {
-      font-size: 0.875rem;
+      font-size: 0.9rem;
       color: var(--text-muted);
+      margin-top: 0.15rem;
     }
 
     .status-badge {
       display: flex;
       align-items: center;
-      gap: 0.6rem;
-      padding: 0.5rem 1rem;
-      background: rgba(16, 185, 129, 0.08);
-      border: 1px solid rgba(16, 185, 129, 0.25);
+      gap: 0.65rem;
+      padding: 0.55rem 1.2rem;
+      background: var(--success-light);
+      border: 1px solid var(--success-border);
       border-radius: 9999px;
       font-size: 0.875rem;
-      font-weight: 600;
-      color: #34d399;
+      font-weight: 700;
+      color: #047857;
+      box-shadow: var(--shadow-sm);
     }
 
     .status-pulse {
@@ -145,16 +152,16 @@
     /* Cards */
     .card {
       background: var(--bg-card);
-      backdrop-filter: blur(16px);
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
       padding: 1.75rem;
       box-shadow: var(--shadow-card);
-      transition: border-color 0.2s ease;
+      transition: all 0.25s ease;
     }
 
     .card:hover {
-      border-color: rgba(255, 255, 255, 0.15);
+      box-shadow: var(--shadow-hover);
+      border-color: #cbd5e1;
     }
 
     .card-header {
@@ -165,11 +172,12 @@
     }
 
     .card-title {
-      font-size: 1.15rem;
+      font-size: 1.2rem;
       font-weight: 700;
+      color: var(--text-main);
       display: flex;
       align-items: center;
-      gap: 0.6rem;
+      gap: 0.65rem;
     }
 
     /* Printers Grid */
@@ -180,21 +188,20 @@
     }
 
     .printer-item {
-      background: rgba(255, 255, 255, 0.03);
+      background: #f8fafc;
       border: 1px solid var(--border);
       border-radius: var(--radius-md);
       padding: 1.25rem;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      transition: all 0.25s ease;
-      position: relative;
+      transition: all 0.2s ease;
     }
 
     .printer-item:hover {
       transform: translateY(-2px);
       border-color: var(--primary);
-      background: rgba(99, 102, 241, 0.05);
+      background: var(--primary-light);
     }
 
     .printer-header {
@@ -207,13 +214,14 @@
     .printer-name {
       font-weight: 700;
       font-size: 1rem;
+      color: var(--text-main);
       word-break: break-word;
     }
 
     .badge-default {
       background: linear-gradient(135deg, var(--primary), var(--accent));
       color: #fff;
-      font-size: 0.7rem;
+      font-size: 0.72rem;
       font-weight: 700;
       padding: 0.2rem 0.55rem;
       border-radius: 9999px;
@@ -221,16 +229,16 @@
     }
 
     .printer-status {
-      font-size: 0.8rem;
+      font-size: 0.825rem;
       color: var(--text-muted);
       display: flex;
       align-items: center;
-      gap: 0.4rem;
-      margin-bottom: 1rem;
+      gap: 0.45rem;
+      margin-bottom: 0.85rem;
     }
 
-    .dot-ready { width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
-    .dot-offline { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
+    .dot-ready { width: 9px; height: 9px; border-radius: 50%; background: var(--success); }
+    .dot-offline { width: 9px; height: 9px; border-radius: 50%; background: var(--danger); }
 
     .paper-tags {
       display: flex;
@@ -242,7 +250,8 @@
     }
 
     .paper-tag {
-      background: rgba(255, 255, 255, 0.06);
+      background: #ffffff;
+      border: 1px solid var(--border);
       padding: 0.15rem 0.45rem;
       border-radius: 4px;
       font-size: 0.72rem;
@@ -254,8 +263,8 @@
     .btn {
       font-family: inherit;
       font-weight: 600;
-      font-size: 0.9rem;
-      padding: 0.65rem 1.25rem;
+      font-size: 0.925rem;
+      padding: 0.7rem 1.4rem;
       border-radius: var(--radius-sm);
       border: none;
       cursor: pointer;
@@ -270,31 +279,31 @@
     .btn-primary {
       background: linear-gradient(135deg, var(--primary), var(--primary-hover));
       color: #fff;
-      box-shadow: 0 4px 15px var(--primary-glow);
+      box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
     }
 
     .btn-primary:hover {
-      filter: brightness(1.15);
+      filter: brightness(1.08);
       transform: translateY(-1px);
     }
 
     .btn-secondary {
-      background: rgba(255, 255, 255, 0.08);
+      background: #f1f5f9;
       color: var(--text-main);
       border: 1px solid var(--border);
     }
 
     .btn-secondary:hover {
-      background: rgba(255, 255, 255, 0.12);
+      background: #e2e8f0;
     }
 
     .btn-sm {
-      padding: 0.4rem 0.85rem;
-      font-size: 0.8rem;
+      padding: 0.45rem 0.9rem;
+      font-size: 0.825rem;
     }
 
     .btn:disabled {
-      opacity: 0.5;
+      opacity: 0.55;
       cursor: not-allowed;
       transform: none !important;
     }
@@ -307,72 +316,80 @@
     .form-label {
       display: block;
       font-size: 0.875rem;
-      font-weight: 600;
+      font-weight: 700;
       margin-bottom: 0.5rem;
-      color: var(--text-muted);
+      color: var(--text-main);
     }
 
     .form-control, .form-select {
       width: 100%;
-      background: rgba(0, 0, 0, 0.25);
-      border: 1px solid var(--border);
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
       border-radius: var(--radius-sm);
       padding: 0.75rem 1rem;
       color: var(--text-main);
       font-family: inherit;
       font-size: 0.925rem;
-      transition: border-color 0.2s ease;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
 
     .form-control:focus, .form-select:focus {
       outline: none;
       border-color: var(--primary);
-      box-shadow: 0 0 0 3px var(--primary-glow);
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
     }
 
     textarea.form-control {
       font-family: 'JetBrains Mono', monospace;
       font-size: 0.85rem;
       resize: vertical;
-      min-height: 120px;
+      min-height: 130px;
+      line-height: 1.5;
     }
 
-    /* Tabs */
-    .tabs {
-      display: flex;
-      gap: 0.5rem;
-      border-bottom: 1px solid var(--border);
-      margin-bottom: 1.25rem;
-      padding-bottom: 0.5rem;
-    }
-
-    .tab-btn {
-      background: transparent;
-      border: none;
-      color: var(--text-muted);
-      font-family: inherit;
-      font-weight: 600;
-      font-size: 0.9rem;
-      padding: 0.5rem 1rem;
+    .file-drop-zone {
+      border: 2px dashed #cbd5e1;
       border-radius: var(--radius-sm);
+      padding: 1.5rem;
+      text-align: center;
+      background: #f8fafc;
       cursor: pointer;
       transition: all 0.2s ease;
+      margin-bottom: 1.25rem;
     }
 
-    .tab-btn.active {
-      background: rgba(99, 102, 241, 0.15);
-      color: #fff;
+    .file-drop-zone:hover {
+      border-color: var(--primary);
+      background: var(--primary-light);
     }
+
+    /* Info list */
+    .info-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      font-size: 0.925rem;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.65rem;
+    }
+
+    .info-label { color: var(--text-muted); font-weight: 500; }
+    .info-value { font-weight: 700; color: var(--text-main); }
 
     /* Code block */
     .code-box {
-      background: #0d1117;
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: #0f172a;
       border-radius: var(--radius-sm);
-      padding: 1rem;
+      padding: 1.1rem;
       font-family: 'JetBrains Mono', monospace;
       font-size: 0.82rem;
-      color: #e6edf3;
+      color: #f1f5f9;
       overflow-x: auto;
       direction: ltr;
       text-align: left;
@@ -381,37 +398,35 @@
 
     .code-copy-btn {
       position: absolute;
-      top: 0.5rem;
-      right: 0.5rem;
-      background: rgba(255, 255, 255, 0.1);
-      border: 1px solid var(--border);
+      top: 0.6rem;
+      right: 0.6rem;
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.2);
       color: #fff;
       font-size: 0.75rem;
-      padding: 0.25rem 0.6rem;
+      padding: 0.3rem 0.7rem;
       border-radius: 4px;
       cursor: pointer;
+      font-family: 'Cairo', sans-serif;
     }
+
+    .code-copy-btn:hover { background: rgba(255, 255, 255, 0.25); }
 
     /* Logs box */
     .log-box {
-      background: #060911;
-      border: 1px solid var(--border);
+      background: #0f172a;
       border-radius: var(--radius-sm);
-      padding: 0.85rem;
+      padding: 1rem;
       font-family: 'JetBrains Mono', monospace;
       font-size: 0.8rem;
-      height: 170px;
+      height: 180px;
       overflow-y: auto;
       direction: ltr;
       text-align: left;
     }
 
-    .log-entry {
-      margin-bottom: 0.35rem;
-      line-height: 1.4;
-    }
-
-    .log-time { color: var(--text-dim); }
+    .log-entry { margin-bottom: 0.4rem; line-height: 1.4; }
+    .log-time { color: #64748b; }
     .log-info { color: #38bdf8; }
     .log-success { color: #4ade80; }
     .log-error { color: #f87171; }
@@ -421,19 +436,20 @@
       position: fixed;
       bottom: 2rem;
       left: 2rem;
-      background: var(--bg-surface);
+      background: #ffffff;
       border: 1px solid var(--border);
       border-radius: var(--radius-md);
       padding: 1rem 1.5rem;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.12);
       display: flex;
       align-items: center;
-      gap: 0.8rem;
+      gap: 0.85rem;
       z-index: 1000;
       opacity: 0;
       transform: translateY(20px);
       transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
       pointer-events: none;
+      font-weight: 600;
     }
 
     #toast.show {
@@ -469,7 +485,7 @@
             <div class="card-title">
               <span>🖥️</span>
               <span>الطابعات المثبتة على الويندوز</span>
-              <span id="printerCount" style="font-size: 0.85rem; color: var(--text-dim);">(...)</span>
+              <span id="printerCount" style="font-size: 0.9rem; color: var(--text-dim); font-weight: 500;">(...)</span>
             </div>
             <button class="btn btn-secondary btn-sm" id="btnRefreshPrinters">
               🔄 تحديث القائمة
@@ -477,9 +493,8 @@
           </div>
 
           <div class="printers-list" id="printersContainer">
-            <!-- سيتم ملء الطابعات عبر JavaScript -->
             <div style="grid-column: 1 / -1; text-align: center; color: var(--text-dim); padding: 2rem;">
-              جاري تحميل الطابعات من نظام التشغيل...
+              جاري فحص الطابعات المثبتة في نظام التشغيل...
             </div>
           </div>
         </div>
@@ -494,26 +509,26 @@
               <span>معلومات البيئة المحلية</span>
             </div>
           </div>
-          <div style="display: flex; flex-direction: column; gap: 1rem; font-size: 0.9rem;">
-            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">
-              <span style="color: var(--text-muted);">عنوان الخدمة (Endpoint):</span>
-              <span style="font-family: 'JetBrains Mono', monospace; color: var(--accent);">http://127.0.0.1:5055</span>
+          <div class="info-list">
+            <div class="info-row">
+              <span class="info-label">عنوان الخدمة (Endpoint):</span>
+              <span class="info-value" style="font-family: 'JetBrains Mono', monospace; color: var(--primary);">http://127.0.0.1:5055</span>
             </div>
-            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">
-              <span style="color: var(--text-muted);">إصدار الوكيل (Version):</span>
-              <span id="infoVersion" style="font-family: 'JetBrains Mono', monospace;">1.0.0</span>
+            <div class="info-row">
+              <span class="info-label">إصدار الوكيل (Version):</span>
+              <span class="info-value" id="infoVersion" style="font-family: 'JetBrains Mono', monospace;">1.0.0</span>
             </div>
-            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">
-              <span style="color: var(--text-muted);">نظام التشغيل (OS):</span>
-              <span id="infoOs" style="font-size: 0.8rem; color: var(--text-muted);">جاري القراءة...</span>
+            <div class="info-row">
+              <span class="info-label">نظام التشغيل (OS):</span>
+              <span class="info-value" id="infoOs" style="font-size: 0.85rem;">جاري القراءة...</span>
             </div>
-            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">
-              <span style="color: var(--text-muted);">دعم CORS:</span>
-              <span style="color: var(--success); font-weight: 700;">مفعل بالكامل (Any Origin)</span>
+            <div class="info-row">
+              <span class="info-label">دعم CORS لـ React:</span>
+              <span class="info-value" style="color: var(--success); font-weight: 700;">مفعل بالكامل ★</span>
             </div>
-            <div style="display: flex; justify-content: space-between;">
-              <span style="color: var(--text-muted);">وضع التشغيل:</span>
-              <span style="color: var(--accent);">Windows Service Ready</span>
+            <div class="info-row" style="border-bottom: none;">
+              <span class="info-label">وضع التشغيل:</span>
+              <span class="info-value" style="color: var(--accent);">Windows Service Ready</span>
             </div>
           </div>
         </div>
@@ -527,9 +542,11 @@
               <span>🧪</span>
               <span>مختبر تجربة الطباعة الصامتة (Print Studio)</span>
             </div>
-            <button class="btn btn-secondary btn-sm" id="btnFillSample">
-              📄 تجهيز نموذج فاتورة
-            </button>
+            <div style="display: flex; gap: 0.5rem;">
+              <button class="btn btn-secondary btn-sm" id="btnFillSample">
+                📄 تجهيز نموذج فاتورة
+              </button>
+            </div>
           </div>
 
           <form id="printForm">
@@ -544,9 +561,9 @@
               <div class="form-group">
                 <label class="form-label" for="selectDocType">نوع المستند (Document Type)</label>
                 <select class="form-select" id="selectDocType">
-                  <option value="1">Raw ESC/POS (طابعة فواتير حرارية)</option>
-                  <option value="3">Text (نص عادي)</option>
-                  <option value="2">PDF (ملف مستند مشفر)</option>
+                  <option value="3" selected>Text (نص منسق - متوافق مع كافة الطابعات و PDF)</option>
+                  <option value="1">Raw ESC/POS (طابعات فواتير حرارية موصولة USB/LAN)</option>
+                  <option value="2">PDF (ملف PDF مشفر Base64)</option>
                   <option value="4">Image (صورة Base64)</option>
                 </select>
               </div>
@@ -559,21 +576,32 @@
               </div>
               <div class="form-group">
                 <label class="form-label" for="inputJobTitle">عنوان المهمة (Spooler Title)</label>
-                <input type="text" class="form-control" id="inputJobTitle" value="SilentPrintTest">
+                <input type="text" class="form-control" id="inputJobTitle" value="SilentInvoicePrint">
               </div>
             </div>
 
-            <div class="form-group">
+            <!-- رفع ملف اختياري (PDF أو صورة) -->
+            <div class="form-group" id="fileUploadContainer" style="display: none;">
+              <label class="form-label">اختيار ملف حقيقي للتجربة (PDF أو صورة)</label>
+              <div class="file-drop-zone" onclick="document.getElementById('fileInput').click()">
+                <span style="font-size: 1.5rem;">📁</span>
+                <p style="font-weight: 600; color: var(--text-main); margin-top: 0.35rem;" id="fileNameDisplay">اضغط هنا لاختيار ملف من جهازك</p>
+                <p style="font-size: 0.8rem; color: var(--text-muted);">يدعم ملفات .pdf أو الصور .png / .jpg</p>
+                <input type="file" id="fileInput" style="display: none;" accept=".pdf,image/*">
+              </div>
+            </div>
+
+            <div class="form-group" id="textInputContainer">
               <label class="form-label" for="textContent">نص الفاتورة / المحتوى التجريبي</label>
               <textarea class="form-control" id="textContent" placeholder="اكتب نص الفاتورة هنا أو اضغط على 'تجهيز نموذج فاتورة'..."></textarea>
             </div>
 
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.25rem;">
               <button type="submit" class="btn btn-primary" id="btnSubmitPrint">
                 <span>🖨️</span>
                 <span>إرسال أمر الطباعة الآن (Silent Print)</span>
               </button>
-              <span id="printLoading" style="display: none; font-size: 0.85rem; color: var(--accent);">جاري إرسال الأمر للطابعة...</span>
+              <span id="printLoading" style="display: none; font-size: 0.875rem; color: var(--primary); font-weight: 700;">جاري إرسال الأمر للطابعة...</span>
             </div>
           </form>
         </div>
@@ -603,14 +631,14 @@
           </div>
           <div class="code-box">
             <button class="code-copy-btn" id="btnCopyCode">نسخ الكود</button>
-<pre id="codeSnippet"><code>// استدعاء من تطبيق React
+<pre id="codeSnippet"><code>// استدعاء مباشر من تطبيق React
 await fetch("http://127.0.0.1:5055/api/print", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
-    printerName: "Rongta RP850",
-    documentType: 1, // 1: Raw ESC/POS
-    contentBase64: btoa("فاتورة تجريبية\n"),
+    printerName: "Microsoft Print to PDF",
+    documentType: 3, // 3: Text, 1: RawEscPos, 2: Pdf
+    contentBase64: btoa(unescape(encodeURIComponent("فاتورة مبيعات\nالإجمالي: 150 د.ل"))),
     copies: 1
   })
 });</code></pre>
@@ -629,20 +657,27 @@ await fetch("http://127.0.0.1:5055/api/print", {
   <script>
     const API_BASE = window.location.origin;
 
-    // عناصر DOM
     const statusBadge = document.getElementById("statusBadge");
     const statusText = document.getElementById("statusText");
     const printersContainer = document.getElementById("printersContainer");
     const selectPrinter = document.getElementById("selectPrinter");
+    const selectDocType = document.getElementById("selectDocType");
     const printerCount = document.getElementById("printerCount");
     const logBox = document.getElementById("logBox");
     const printForm = document.getElementById("printForm");
     const textContent = document.getElementById("textContent");
     const btnFillSample = document.getElementById("btnFillSample");
     const btnRefreshPrinters = document.getElementById("btnRefreshPrinters");
+    const btnClearLogs = document.getElementById("btnClearLogs");
+    const fileUploadContainer = document.getElementById("fileUploadContainer");
+    const textInputContainer = document.getElementById("textInputContainer");
+    const fileInput = document.getElementById("fileInput");
+    const fileNameDisplay = document.getElementById("fileNameDisplay");
     const toast = document.getElementById("toast");
     const toastMsg = document.getElementById("toastMsg");
     const toastIcon = document.getElementById("toastIcon");
+
+    let uploadedBase64 = null;
 
     function addLog(msg, type = "info") {
       const now = new Date().toTimeString().split(" ")[0];
@@ -656,10 +691,37 @@ await fetch("http://127.0.0.1:5055/api/print", {
     function showToast(msg, isSuccess = true) {
       toastMsg.innerText = msg;
       toastIcon.innerText = isSuccess ? "✅" : "❌";
-      toast.style.borderColor = isSuccess ? "rgba(16, 185, 129, 0.4)" : "rgba(239, 68, 68, 0.4)";
+      toast.style.borderColor = isSuccess ? "var(--success-border)" : "#fecaca";
+      toast.style.color = isSuccess ? "#047857" : "#b91c1c";
       toast.classList.add("show");
       setTimeout(() => toast.classList.remove("show"), 3500);
     }
+
+    // تبديل واجهة الإدخال عند اختيار PDF أو صور
+    selectDocType.addEventListener("change", () => {
+      const val = selectDocType.value;
+      if (val === "2" || val === "4") {
+        fileUploadContainer.style.display = "block";
+      } else {
+        fileUploadContainer.style.display = "none";
+        uploadedBase64 = null;
+        fileNameDisplay.innerText = "اضغط هنا لاختيار ملف من جهازك";
+      }
+    });
+
+    fileInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      fileNameDisplay.innerText = `تم اختيار: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+      const reader = new FileReader();
+      reader.onload = () => {
+        // استخراج الجزء بعد فاصلة Base64
+        const result = reader.result;
+        uploadedBase64 = result.split(",")[1];
+        addLog(`تم تحميل الملف [${file.name}] وتحويله إلى Base64 بنجاح.`, "success");
+      };
+      reader.readAsDataURL(file);
+    });
 
     // 1. فحص الاتصال بالخدمة
     async function checkHealth() {
@@ -667,15 +729,15 @@ await fetch("http://127.0.0.1:5055/api/print", {
         const res = await fetch(`${API_BASE}/api/health`);
         if (!res.ok) throw new Error("استجابة غير صحيحة");
         const data = await res.json();
-        statusBadge.style.background = "rgba(16, 185, 129, 0.12)";
-        statusBadge.style.color = "#34d399";
+        statusBadge.style.background = "var(--success-light)";
+        statusBadge.style.color = "#047857";
         statusText.innerText = "الخدمة متصلة وجاهزة";
         document.getElementById("infoOs").innerText = data.os || "Windows";
         document.getElementById("infoVersion").innerText = data.version || "1.0.0";
         addLog(`تم الاتصال بالخدمة بنجاح (OS: ${data.os})`, "success");
       } catch (err) {
-        statusBadge.style.background = "rgba(239, 68, 68, 0.12)";
-        statusBadge.style.color = "#f87171";
+        statusBadge.style.background = "var(--danger-light)";
+        statusBadge.style.color = "var(--danger)";
         statusText.innerText = "تعذر الاتصال بالخدمة";
         addLog(`فشل الاتصال بالخدمة: ${err.message}`, "error");
       }
@@ -699,14 +761,12 @@ await fetch("http://127.0.0.1:5055/api/print", {
         }
 
         printers.forEach(p => {
-          // إضافة إلى قائمة الاختيار
           const opt = document.createElement("option");
           opt.value = p.name;
           opt.innerText = `${p.name} ${p.isDefault ? "★ (الافتراضية)" : ""}`;
           if (p.isDefault) opt.selected = true;
           selectPrinter.appendChild(opt);
 
-          // بطاقة الطابعة في الواجهة
           const card = document.createElement("div");
           card.className = "printer-item";
           card.innerHTML = `
@@ -763,30 +823,37 @@ await fetch("http://127.0.0.1:5055/api/print", {
     printForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       const printer = selectPrinter.value;
-      const docType = parseInt(document.getElementById("selectDocType").value);
+      const docType = parseInt(selectDocType.value);
       const copies = parseInt(document.getElementById("inputCopies").value) || 1;
       const jobTitle = document.getElementById("inputJobTitle").value;
-      const text = textContent.value;
 
       if (!printer) {
         showToast("يرجى اختيار الطابعة أولاً", false);
         return;
       }
-      if (!text) {
-        showToast("يرجى إدخال نص الفاتورة أو الضغط على تجهيز نموذج فاتورة", false);
-        return;
-      }
 
-      // تحويل النص إلى Base64 باستخدام UTF-8 encoding
-      const utf8Bytes = new TextEncoder().encode(text);
-      let binary = '';
-      utf8Bytes.forEach(b => binary += String.fromCharCode(b));
-      const base64 = btoa(binary);
+      let base64Payload = "";
+
+      // إذا تم اختيار ملف مرفوع
+      if (uploadedBase64 && (docType === 2 || docType === 4)) {
+        base64Payload = uploadedBase64;
+      } else {
+        const text = textContent.value;
+        if (!text) {
+          showToast("يرجى كتابة نص الفاتورة أو الضغط على زر 'تجهيز نموذج فاتورة'", false);
+          return;
+        }
+        // تشفير آمن للنصوص العربية بـ UTF-8 إلى Base64
+        const utf8Bytes = new TextEncoder().encode(text);
+        let binary = '';
+        utf8Bytes.forEach(b => binary += String.fromCharCode(b));
+        base64Payload = btoa(binary);
+      }
 
       const payload = {
         printerName: printer,
         documentType: docType,
-        contentBase64: base64,
+        contentBase64: base64Payload,
         copies: copies,
         jobTitle: jobTitle
       };
@@ -807,7 +874,7 @@ await fetch("http://127.0.0.1:5055/api/print", {
         const result = await res.json();
         if (result.success) {
           addLog(`نجحت عملية الطباعة على [${printer}]! المعرف: ${result.jobId}`, "success");
-          showToast("تم إرسال أمر الطباعة الصامت بنجاح!", true);
+          showToast("تم إرسال أمر الطباعة بنجاح وبصمت!", true);
         } else {
           addLog(`فشلت الطباعة: ${result.message}`, "error");
           showToast(result.message, false);
@@ -824,32 +891,35 @@ await fetch("http://127.0.0.1:5055/api/print", {
     // 5. تعبئة نموذج فاتورة تجريبية
     btnFillSample.addEventListener("click", () => {
       textContent.value = 
-`================================
-       متجر النخبة للتجارة
-    فاتورة مبيعات تجريبية
-================================
+`========================================
+           متجر النخبة للتجارة
+        فاتورة مبيعات تجريبية
+========================================
 التاريخ: ${new Date().toLocaleDateString('ar-LY')}
 الوقت:   ${new Date().toLocaleTimeString('ar-LY')}
 رقم الفاتورة: INV-2026-0089
 الكاشير:      مسعود
---------------------------------
-الصنف            الكمية   السعر
-قهوة اسبريسو       2      10.00
-كرواسون فرنسي     1       7.50
-مياه معدنية        3       3.00
---------------------------------
-المجموع الفرعي:          20.50 د.ل
-الضريبة (0%):            0.00 د.ل
-الإجمالي النهائي:        20.50 د.ل
---------------------------------
-   شكراً لزيارتكم الكريمة!
-================================
+----------------------------------------
+الصنف                الكمية   السعر
+قهوة اسبريسو           2      10.00
+كرواسون فرنسي         1       7.50
+مياه معدنية            3       3.00
+----------------------------------------
+المجموع الفرعي:              20.50 د.ل
+الضريبة (0%):                0.00 د.ل
+الإجمالي النهائي:            20.50 د.ل
+----------------------------------------
+       شكراً لزيارتكم الكريمة!
+========================================
 
 
 
 `;
-      addLog("تم تجهيز نموذج فاتورة تجريبية في حقل النص", "info");
-      showToast("تم توليد نموذج فاتورة تجريبية", true);
+      // ضبط نوع المستند إلى Text تلقائياً لضمان التوافق مع Microsoft Print to PDF
+      selectDocType.value = "3";
+      fileUploadContainer.style.display = "none";
+      addLog("تم تجهيز نموذج فاتورة تجريبية وضبط النوع إلى Text التوافقي", "info");
+      showToast("تم تجهيز نموذج الفاتورة بنجاح", true);
     });
 
     // 6. نسخ كود React
@@ -861,6 +931,9 @@ await fetch("http://127.0.0.1:5055/api/print", {
     });
 
     btnRefreshPrinters.addEventListener("click", loadPrinters);
+    btnClearLogs.addEventListener("click", () => {
+      logBox.innerHTML = '<div class="log-entry"><span class="log-time">[00:00:00]</span> <span class="log-info">تم مسح السجل.</span></div>';
+    });
 
     // البدء الفوري
     checkHealth();
