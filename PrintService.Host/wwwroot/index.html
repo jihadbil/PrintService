@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>لوحة تحكم وكيل الطباعة المحلي | PrintService Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #090d16;
+      --bg-surface: #111827;
+      --bg-card: rgba(17, 24, 39, 0.75);
+      --border: rgba(255, 255, 255, 0.08);
+      --border-focus: rgba(99, 102, 241, 0.5);
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --primary-glow: rgba(99, 102, 241, 0.25);
+      --accent: #06b6d4;
+      --success: #10b981;
+      --success-glow: rgba(16, 185, 129, 0.2);
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --text-main: #f9fafb;
+      --text-muted: #9ca3af;
+      --text-dim: #6b7280;
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --shadow-card: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Cairo', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      min-height: 100vh;
+      line-height: 1.6;
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.12) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(6, 182, 212, 0.1) 0%, transparent 40%);
+      background-attachment: fixed;
+    }
+
+    .container {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 2.5rem;
+      flex-wrap: wrap;
+      gap: 1.25rem;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .brand-icon {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6rem;
+      box-shadow: 0 0 20px var(--primary-glow);
+    }
+
+    .brand-text h1 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(90deg, #fff, #cbd5e1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-text p {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.5rem 1rem;
+      background: rgba(16, 185, 129, 0.08);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      border-radius: 9999px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #34d399;
+    }
+
+    .status-pulse {
+      width: 10px;
+      height: 10px;
+      background: var(--success);
+      border-radius: 50%;
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    /* Grid Layout */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 1.75rem;
+    }
+
+    .col-8 { grid-column: span 8; }
+    .col-4 { grid-column: span 4; }
+    .col-12 { grid-column: span 12; }
+
+    @media (max-width: 960px) {
+      .col-8, .col-4 { grid-column: span 12; }
+    }
+
+    /* Cards */
+    .card {
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.75rem;
+      box-shadow: var(--shadow-card);
+      transition: border-color 0.2s ease;
+    }
+
+    .card:hover {
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .card-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    /* Printers Grid */
+    .printers-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 1rem;
+    }
+
+    .printer-item {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.25s ease;
+      position: relative;
+    }
+
+    .printer-item:hover {
+      transform: translateY(-2px);
+      border-color: var(--primary);
+      background: rgba(99, 102, 241, 0.05);
+    }
+
+    .printer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 0.75rem;
+    }
+
+    .printer-name {
+      font-weight: 700;
+      font-size: 1rem;
+      word-break: break-word;
+    }
+
+    .badge-default {
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      color: #fff;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.2rem 0.55rem;
+      border-radius: 9999px;
+      white-space: nowrap;
+    }
+
+    .printer-status {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-bottom: 1rem;
+    }
+
+    .dot-ready { width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
+    .dot-offline { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
+
+    .paper-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin-bottom: 1.25rem;
+      max-height: 60px;
+      overflow-y: auto;
+    }
+
+    .paper-tag {
+      background: rgba(255, 255, 255, 0.06);
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Buttons */
+    .btn {
+      font-family: inherit;
+      font-weight: 600;
+      font-size: 0.9rem;
+      padding: 0.65rem 1.25rem;
+      border-radius: var(--radius-sm);
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+      color: #fff;
+      box-shadow: 0 4px 15px var(--primary-glow);
+    }
+
+    .btn-primary:hover {
+      filter: brightness(1.15);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .btn-sm {
+      padding: 0.4rem 0.85rem;
+      font-size: 0.8rem;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+
+    /* Form Inputs */
+    .form-group {
+      margin-bottom: 1.25rem;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: var(--text-muted);
+    }
+
+    .form-control, .form-select {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 0.75rem 1rem;
+      color: var(--text-main);
+      font-family: inherit;
+      font-size: 0.925rem;
+      transition: border-color 0.2s ease;
+    }
+
+    .form-control:focus, .form-select:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-glow);
+    }
+
+    textarea.form-control {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      resize: vertical;
+      min-height: 120px;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 0.5rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1.25rem;
+      padding-bottom: 0.5rem;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-family: inherit;
+      font-weight: 600;
+      font-size: 0.9rem;
+      padding: 0.5rem 1rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .tab-btn.active {
+      background: rgba(99, 102, 241, 0.15);
+      color: #fff;
+    }
+
+    /* Code block */
+    .code-box {
+      background: #0d1117;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: var(--radius-sm);
+      padding: 1rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      color: #e6edf3;
+      overflow-x: auto;
+      direction: ltr;
+      text-align: left;
+      position: relative;
+    }
+
+    .code-copy-btn {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid var(--border);
+      color: #fff;
+      font-size: 0.75rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    /* Logs box */
+    .log-box {
+      background: #060911;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 0.85rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      height: 170px;
+      overflow-y: auto;
+      direction: ltr;
+      text-align: left;
+    }
+
+    .log-entry {
+      margin-bottom: 0.35rem;
+      line-height: 1.4;
+    }
+
+    .log-time { color: var(--text-dim); }
+    .log-info { color: #38bdf8; }
+    .log-success { color: #4ade80; }
+    .log-error { color: #f87171; }
+
+    /* Alert Toast */
+    #toast {
+      position: fixed;
+      bottom: 2rem;
+      left: 2rem;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1rem 1.5rem;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      z-index: 1000;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: none;
+    }
+
+    #toast.show {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="brand">
+        <div class="brand-icon">🖨️</div>
+        <div class="brand-text">
+          <h1>وكيل الطباعة المحلي (PrintService)</h1>
+          <p>لوحة التحكم والاختبار التفاعلية للطباعة الصامتة من المتصفح</p>
+        </div>
+      </div>
+      <div class="status-badge" id="statusBadge">
+        <span class="status-pulse"></span>
+        <span id="statusText">جاري الاتصال بالخدمة...</span>
+      </div>
+    </header>
+
+    <div class="grid">
+      <!-- Section 1: Installed Printers (Col 8) -->
+      <div class="col-8">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <span>🖥️</span>
+              <span>الطابعات المثبتة على الويندوز</span>
+              <span id="printerCount" style="font-size: 0.85rem; color: var(--text-dim);">(...)</span>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="btnRefreshPrinters">
+              🔄 تحديث القائمة
+            </button>
+          </div>
+
+          <div class="printers-list" id="printersContainer">
+            <!-- سيتم ملء الطابعات عبر JavaScript -->
+            <div style="grid-column: 1 / -1; text-align: center; color: var(--text-dim); padding: 2rem;">
+              جاري تحميل الطابعات من نظام التشغيل...
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 2: Info & Stats (Col 4) -->
+      <div class="col-4">
+        <div class="card" style="height: 100%;">
+          <div class="card-header">
+            <div class="card-title">
+              <span>⚡</span>
+              <span>معلومات البيئة المحلية</span>
+            </div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 1rem; font-size: 0.9rem;">
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">
+              <span style="color: var(--text-muted);">عنوان الخدمة (Endpoint):</span>
+              <span style="font-family: 'JetBrains Mono', monospace; color: var(--accent);">http://127.0.0.1:5055</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">
+              <span style="color: var(--text-muted);">إصدار الوكيل (Version):</span>
+              <span id="infoVersion" style="font-family: 'JetBrains Mono', monospace;">1.0.0</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">
+              <span style="color: var(--text-muted);">نظام التشغيل (OS):</span>
+              <span id="infoOs" style="font-size: 0.8rem; color: var(--text-muted);">جاري القراءة...</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">
+              <span style="color: var(--text-muted);">دعم CORS:</span>
+              <span style="color: var(--success); font-weight: 700;">مفعل بالكامل (Any Origin)</span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <span style="color: var(--text-muted);">وضع التشغيل:</span>
+              <span style="color: var(--accent);">Windows Service Ready</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 3: Interactive Print Studio (Col 8) -->
+      <div class="col-8">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <span>🧪</span>
+              <span>مختبر تجربة الطباعة الصامتة (Print Studio)</span>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="btnFillSample">
+              📄 تجهيز نموذج فاتورة
+            </button>
+          </div>
+
+          <form id="printForm">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+              <div class="form-group">
+                <label class="form-label" for="selectPrinter">الطابعة المستهدفة</label>
+                <select class="form-select" id="selectPrinter" required>
+                  <option value="">(جاري تحميل الطابعات...)</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="selectDocType">نوع المستند (Document Type)</label>
+                <select class="form-select" id="selectDocType">
+                  <option value="1">Raw ESC/POS (طابعة فواتير حرارية)</option>
+                  <option value="3">Text (نص عادي)</option>
+                  <option value="2">PDF (ملف مستند مشفر)</option>
+                  <option value="4">Image (صورة Base64)</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+              <div class="form-group">
+                <label class="form-label" for="inputCopies">عدد النسخ</label>
+                <input type="number" class="form-control" id="inputCopies" value="1" min="1" max="10">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="inputJobTitle">عنوان المهمة (Spooler Title)</label>
+                <input type="text" class="form-control" id="inputJobTitle" value="SilentPrintTest">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="textContent">نص الفاتورة / المحتوى التجريبي</label>
+              <textarea class="form-control" id="textContent" placeholder="اكتب نص الفاتورة هنا أو اضغط على 'تجهيز نموذج فاتورة'..."></textarea>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem;">
+              <button type="submit" class="btn btn-primary" id="btnSubmitPrint">
+                <span>🖨️</span>
+                <span>إرسال أمر الطباعة الآن (Silent Print)</span>
+              </button>
+              <span id="printLoading" style="display: none; font-size: 0.85rem; color: var(--accent);">جاري إرسال الأمر للطابعة...</span>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Section 4: Live Event Console & React Integration (Col 4) -->
+      <div class="col-4">
+        <div class="card" style="margin-bottom: 1.75rem;">
+          <div class="card-header">
+            <div class="card-title">
+              <span>📋</span>
+              <span>سجل العمليات المباشر (Console)</span>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="btnClearLogs">مسح</button>
+          </div>
+          <div class="log-box" id="logBox">
+            <div class="log-entry"><span class="log-time">[00:00:00]</span> <span class="log-info">لوحة التحكم جاهزة للاختبار.</span></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <span>⚛️</span>
+              <span>كود الاستدعاء في React</span>
+            </div>
+          </div>
+          <div class="code-box">
+            <button class="code-copy-btn" id="btnCopyCode">نسخ الكود</button>
+<pre id="codeSnippet"><code>// استدعاء من تطبيق React
+await fetch("http://127.0.0.1:5055/api/print", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    printerName: "Rongta RP850",
+    documentType: 1, // 1: Raw ESC/POS
+    contentBase64: btoa("فاتورة تجريبية\n"),
+    copies: 1
+  })
+});</code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast">
+    <span id="toastIcon">ℹ️</span>
+    <span id="toastMsg">رسالة التنبيه</span>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+
+    // عناصر DOM
+    const statusBadge = document.getElementById("statusBadge");
+    const statusText = document.getElementById("statusText");
+    const printersContainer = document.getElementById("printersContainer");
+    const selectPrinter = document.getElementById("selectPrinter");
+    const printerCount = document.getElementById("printerCount");
+    const logBox = document.getElementById("logBox");
+    const printForm = document.getElementById("printForm");
+    const textContent = document.getElementById("textContent");
+    const btnFillSample = document.getElementById("btnFillSample");
+    const btnRefreshPrinters = document.getElementById("btnRefreshPrinters");
+    const toast = document.getElementById("toast");
+    const toastMsg = document.getElementById("toastMsg");
+    const toastIcon = document.getElementById("toastIcon");
+
+    function addLog(msg, type = "info") {
+      const now = new Date().toTimeString().split(" ")[0];
+      const div = document.createElement("div");
+      div.className = "log-entry";
+      div.innerHTML = `<span class="log-time">[${now}]</span> <span class="log-${type}">${msg}</span>`;
+      logBox.appendChild(div);
+      logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    function showToast(msg, isSuccess = true) {
+      toastMsg.innerText = msg;
+      toastIcon.innerText = isSuccess ? "✅" : "❌";
+      toast.style.borderColor = isSuccess ? "rgba(16, 185, 129, 0.4)" : "rgba(239, 68, 68, 0.4)";
+      toast.classList.add("show");
+      setTimeout(() => toast.classList.remove("show"), 3500);
+    }
+
+    // 1. فحص الاتصال بالخدمة
+    async function checkHealth() {
+      try {
+        const res = await fetch(`${API_BASE}/api/health`);
+        if (!res.ok) throw new Error("استجابة غير صحيحة");
+        const data = await res.json();
+        statusBadge.style.background = "rgba(16, 185, 129, 0.12)";
+        statusBadge.style.color = "#34d399";
+        statusText.innerText = "الخدمة متصلة وجاهزة";
+        document.getElementById("infoOs").innerText = data.os || "Windows";
+        document.getElementById("infoVersion").innerText = data.version || "1.0.0";
+        addLog(`تم الاتصال بالخدمة بنجاح (OS: ${data.os})`, "success");
+      } catch (err) {
+        statusBadge.style.background = "rgba(239, 68, 68, 0.12)";
+        statusBadge.style.color = "#f87171";
+        statusText.innerText = "تعذر الاتصال بالخدمة";
+        addLog(`فشل الاتصال بالخدمة: ${err.message}`, "error");
+      }
+    }
+
+    // 2. تحميل الطابعات المثبتة
+    async function loadPrinters() {
+      try {
+        addLog("جاري استعلام الطابعات من نظام ويندوز...", "info");
+        const res = await fetch(`${API_BASE}/api/printers`);
+        if (!res.ok) throw new Error("فشل جلب الطابعات");
+        const printers = await res.json();
+
+        printerCount.innerText = `(${printers.length} طابعة)`;
+        printersContainer.innerHTML = "";
+        selectPrinter.innerHTML = "";
+
+        if (printers.length === 0) {
+          printersContainer.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--warning); padding: 2rem;">لم يتم العثور على أي طابعة مثبتة في النظام.</div>`;
+          return;
+        }
+
+        printers.forEach(p => {
+          // إضافة إلى قائمة الاختيار
+          const opt = document.createElement("option");
+          opt.value = p.name;
+          opt.innerText = `${p.name} ${p.isDefault ? "★ (الافتراضية)" : ""}`;
+          if (p.isDefault) opt.selected = true;
+          selectPrinter.appendChild(opt);
+
+          // بطاقة الطابعة في الواجهة
+          const card = document.createElement("div");
+          card.className = "printer-item";
+          card.innerHTML = `
+            <div>
+              <div class="printer-header">
+                <span class="printer-name">${p.name}</span>
+                ${p.isDefault ? '<span class="badge-default">افتراضية ★</span>' : ''}
+              </div>
+              <div class="printer-status">
+                <span class="${p.isOnline ? 'dot-ready' : 'dot-offline'}"></span>
+                <span>${p.isOnline ? 'متصلة وجاهزة' : 'غير متصلة'}</span>
+              </div>
+              <div class="paper-tags">
+                ${(p.supportedPaperSizes || []).slice(0, 5).map(s => `<span class="paper-tag">${s}</span>`).join('')}
+                ${(p.supportedPaperSizes || []).length > 5 ? `<span class="paper-tag">+${p.supportedPaperSizes.length - 5}</span>` : ''}
+              </div>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="quickTestPrint('${p.name.replace(/'/g, "\\'")}')" style="width: 100%;">
+              ⚡ اختبار سريع
+            </button>
+          `;
+          printersContainer.appendChild(card);
+        });
+
+        addLog(`تم تحميل ${printers.length} طابعة بنجاح`, "success");
+      } catch (err) {
+        printersContainer.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--danger); padding: 2rem;">خطأ في قراءة الطابعات: ${err.message}</div>`;
+        addLog(`خطأ في قراءة الطابعات: ${err.message}`, "error");
+      }
+    }
+
+    // 3. اختبار سريع لطابعة معينة
+    window.quickTestPrint = async function(printerName) {
+      addLog(`إرسال اختبار ذاتي للطابعة: [${printerName}]...`, "info");
+      try {
+        const res = await fetch(`${API_BASE}/api/print/test?printerName=${encodeURIComponent(printerName)}`, {
+          method: "POST"
+        });
+        const result = await res.json();
+        if (result.success) {
+          addLog(`نجح الاختبار الذاتي على [${printerName}]`, "success");
+          showToast(`تم إرسال أمر الاختبار بنجاح إلى ${printerName}`, true);
+        } else {
+          addLog(`فشل الاختبار: ${result.message}`, "error");
+          showToast(result.message, false);
+        }
+      } catch (err) {
+        addLog(`خطأ في طلب الاختبار: ${err.message}`, "error");
+        showToast(err.message, false);
+      }
+    };
+
+    // 4. إرسال أمر طباعة من المختبر
+    printForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const printer = selectPrinter.value;
+      const docType = parseInt(document.getElementById("selectDocType").value);
+      const copies = parseInt(document.getElementById("inputCopies").value) || 1;
+      const jobTitle = document.getElementById("inputJobTitle").value;
+      const text = textContent.value;
+
+      if (!printer) {
+        showToast("يرجى اختيار الطابعة أولاً", false);
+        return;
+      }
+      if (!text) {
+        showToast("يرجى إدخال نص الفاتورة أو الضغط على تجهيز نموذج فاتورة", false);
+        return;
+      }
+
+      // تحويل النص إلى Base64 باستخدام UTF-8 encoding
+      const utf8Bytes = new TextEncoder().encode(text);
+      let binary = '';
+      utf8Bytes.forEach(b => binary += String.fromCharCode(b));
+      const base64 = btoa(binary);
+
+      const payload = {
+        printerName: printer,
+        documentType: docType,
+        contentBase64: base64,
+        copies: copies,
+        jobTitle: jobTitle
+      };
+
+      const btnSubmit = document.getElementById("btnSubmitPrint");
+      const loading = document.getElementById("printLoading");
+      btnSubmit.disabled = true;
+      loading.style.display = "inline";
+
+      addLog(`إرسال أمر طباعة صامت إلى [${printer}] (${copies} نسخة)...`, "info");
+
+      try {
+        const res = await fetch(`${API_BASE}/api/print`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+        if (result.success) {
+          addLog(`نجحت عملية الطباعة على [${printer}]! المعرف: ${result.jobId}`, "success");
+          showToast("تم إرسال أمر الطباعة الصامت بنجاح!", true);
+        } else {
+          addLog(`فشلت الطباعة: ${result.message}`, "error");
+          showToast(result.message, false);
+        }
+      } catch (err) {
+        addLog(`خطأ اتصال أثناء الطباعة: ${err.message}`, "error");
+        showToast(err.message, false);
+      } finally {
+        btnSubmit.disabled = false;
+        loading.style.display = "none";
+      }
+    });
+
+    // 5. تعبئة نموذج فاتورة تجريبية
+    btnFillSample.addEventListener("click", () => {
+      textContent.value = 
+`================================
+       متجر النخبة للتجارة
+    فاتورة مبيعات تجريبية
+================================
+التاريخ: ${new Date().toLocaleDateString('ar-LY')}
+الوقت:   ${new Date().toLocaleTimeString('ar-LY')}
+رقم الفاتورة: INV-2026-0089
+الكاشير:      مسعود
+--------------------------------
+الصنف            الكمية   السعر
+قهوة اسبريسو       2      10.00
+كرواسون فرنسي     1       7.50
+مياه معدنية        3       3.00
+--------------------------------
+المجموع الفرعي:          20.50 د.ل
+الضريبة (0%):            0.00 د.ل
+الإجمالي النهائي:        20.50 د.ل
+--------------------------------
+   شكراً لزيارتكم الكريمة!
+================================
+
+
+
+`;
+      addLog("تم تجهيز نموذج فاتورة تجريبية في حقل النص", "info");
+      showToast("تم توليد نموذج فاتورة تجريبية", true);
+    });
+
+    // 6. نسخ كود React
+    document.getElementById("btnCopyCode").addEventListener("click", () => {
+      const code = document.getElementById("codeSnippet").innerText;
+      navigator.clipboard.writeText(code).then(() => {
+        showToast("تم نسخ كود React إلى الحافظة!", true);
+      });
+    });
+
+    btnRefreshPrinters.addEventListener("click", loadPrinters);
+
+    // البدء الفوري
+    checkHealth();
+    loadPrinters();
+  </script>
+</body>
+</html>

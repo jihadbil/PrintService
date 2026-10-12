@@ -44,19 +44,24 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+// تفعيل تقديم الملفات الثابتة ولوحة التحكم التفاعلية من مجلد wwwroot
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 // ------------------------------------------------------------------------------------------
 // Endpoints: نقاط النهاية البرمجية للخدمة
 // ------------------------------------------------------------------------------------------
 
 /// <summary>
-/// الصفحة الرئيسية (GET /)
+/// معلومات الخدمة (GET /api)
 /// نقطة وصول سريعة تعرض معلومات الخدمة، حالتها، وقائمة الواجهات المتاحة.
 /// </summary>
-app.MapGet("/", () => Results.Ok(new
+app.MapGet("/api", () => Results.Ok(new
 {
     service = "Local PrintService Agent",
     status = "Running",
     version = "1.0.0",
+    dashboard = "/",
     docs = "/openapi/v1.json",
     endpoints = new[]
     {
