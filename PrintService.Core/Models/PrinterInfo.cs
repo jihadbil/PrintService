@@ -20,8 +20,14 @@ public class PrinterInfo
     /// </summary>
     public bool IsOnline { get; set; }
 
+    /// <summary>
+    /// يحدد ما إذا كانت الطابعة جاهزة للطباعة الفورية وخالية من أي أعطال أو نفاد في الورق أو الحبر.
+    /// </summary>
     public bool IsReady { get; set; }
 
+    /// <summary>
+    /// يشير إلى ما إذا كان قد تم التحقق بنجاح من حالة الطابعة الحالية عبر نظام التشغيل.
+    /// </summary>
     public bool StatusKnown { get; set; }
 
     /// <summary>

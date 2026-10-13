@@ -4,6 +4,9 @@ using PrintService.Core.Models;
 
 namespace PrintService.Infrastructure.Services;
 
+/// <summary>
+/// كتالوج وفهرس طابعات نظام ويندوز؛ يكتشف الطابعات وحالاتها التشغيلية وأحجام الورق المدعومة عبر EnumPrinters و DeviceCapabilities.
+/// </summary>
 public sealed class WindowsPrinterCatalog : IPrinterCatalog
 {
     [StructLayout(LayoutKind.Sequential)]
@@ -22,9 +25,19 @@ public sealed class WindowsPrinterCatalog : IPrinterCatalog
     [DllImport("winspool.drv", EntryPoint = "DeviceCapabilitiesW", CharSet = CharSet.Unicode)]
     private static extern int DeviceCapabilities(string printer, string port, short capability, IntPtr output, IntPtr devMode);
 
+    /// <summary>
+    /// قراءة غير متزامنة لجميع الطابعات المعرفة في نظام التشغيل مع حالاتها وأحجام الورق.
+    /// </summary>
+    /// <param name="ct">رمز إلغاء العملية.</param>
+    /// <returns>قائمة غير قابلة للتعديل تحتوي على كائنات PrinterInfo لكل طابعة مثبتة.</returns>
     public Task<IReadOnlyList<PrinterInfo>> GetPrintersAsync(CancellationToken ct) =>
         Task.Run<IReadOnlyList<PrinterInfo>>(() => Enumerate(ct), ct);
 
+    /// <summary>
+    /// استدعاء دالة EnumPrinters وتفكيك هياكل PRINTER_INFO_2 لإنشاء كائنات معلومات الطابعات.
+    /// </summary>
+    /// <param name="ct">رمز إلغاء العملية.</param>
+    /// <returns>قائمة الطابعات المثبتة في النظام.</returns>
     private static List<PrinterInfo> Enumerate(CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
@@ -62,7 +75,12 @@ public sealed class WindowsPrinterCatalog : IPrinterCatalog
         finally { Marshal.FreeHGlobal(buffer); }
     }
 
-    // Driver-reported states cannot guarantee a physical connection.
+    /// <summary>
+    /// تحليل رايات الحالة الرقمية المعادة من برنامج التشغيل وتحديد ما إذا كانت الطابعة متصلة، وجاهزة، مع وصف نصي للحالة.
+    /// </summary>
+    /// <param name="status">قناع بتات حالة الطابعة (PRINTER_STATUS_*).</param>
+    /// <param name="workOffline">ما إذا كانت سمة العمل بدون اتصال (PRINTER_ATTRIBUTE_WORK_OFFLINE) مفعلة.</param>
+    /// <returns>ثلاثي يحتوي على (Online: هل متصلة، Ready: هل جاهزة للطباعة، Description: الوصف النصي للحالة).</returns>
     public static (bool Online, bool Ready, string Description) DescribeStatus(uint status, bool workOffline = false)
     {
         var names = new List<string>();
@@ -81,6 +99,10 @@ public sealed class WindowsPrinterCatalog : IPrinterCatalog
         return (online, online && (status & blocking) == 0, names.Count == 0 ? "Ready" : string.Join(", ", names));
     }
 
+    /// <summary>
+    /// جلب اسم الطابعة الافتراضية المحددة في نظام ويندوز عبر GetDefaultPrinter.
+    /// </summary>
+    /// <returns>اسم الطابعة الافتراضية أو null إذا لم تكن هناك طابعة محددة.</returns>
     private static string? DefaultPrinterName()
     {
         uint size = 0;
@@ -90,6 +112,12 @@ public sealed class WindowsPrinterCatalog : IPrinterCatalog
         return GetDefaultPrinter(name, ref size) ? name.ToString() : null;
     }
 
+    /// <summary>
+    /// استعلام أسماء مقاسات الورق التي يدعمها برنامج تشغيل الطابعة عبر DeviceCapabilities.
+    /// </summary>
+    /// <param name="printer">اسم الطابعة في ويندوز.</param>
+    /// <param name="port">اسم المنفذ المتصلة به الطابعة.</param>
+    /// <returns>قائمة بأسماء مقاسات الورق المدعومة.</returns>
     private static List<string> PaperNames(string printer, string port)
     {
         int count = DeviceCapabilities(printer, port, 16, IntPtr.Zero, IntPtr.Zero);
@@ -107,5 +135,10 @@ public sealed class WindowsPrinterCatalog : IPrinterCatalog
         finally { Marshal.FreeHGlobal(buffer); }
     }
 
+    /// <summary>
+    /// فك تشفير وتجريد اسم مقاس الورق الثابت الطول المرتجع من Win32 API باقتطاعه عند أول محرف فارغ (null character).
+    /// </summary>
+    /// <param name="fixedWidthName">السلسلة النصية ذات العرض الثابت المرتجعة من الذاكرة.</param>
+    /// <returns>الاسم النظيف لمقاس الورق.</returns>
     public static string DecodePaperName(string fixedWidthName) => fixedWidthName.Split('\0')[0];
 }

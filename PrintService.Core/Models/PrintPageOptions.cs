@@ -1,14 +1,39 @@
 namespace PrintService.Core.Models;
 
-/// <summary>Per-job layout. Never changes shared Windows printer defaults.</summary>
+/// <summary>
+/// خيارات تخطيط وتنسيق الصفحة المخصصة لكل عملية طباعة دون تغيير الإعدادات الافتراضية العامة للطابعة في ويندوز.
+/// </summary>
 public sealed record PrintPageOptions
 {
+    /// <summary>
+    /// اسم مقاس الورق المعياري المعرف في الطابعة (مثل: A4, Letter, 80mm).
+    /// </summary>
     public string? PaperName { get; init; }
+
+    /// <summary>
+    /// عرض الورق المخصص بالمليمتر (عند تحديد أبعاد ورق مخصصة).
+    /// </summary>
     public double? PaperWidthMm { get; init; }
+
+    /// <summary>
+    /// ارتفاع الورق المخصص بالمليمتر (عند تحديد أبعاد ورق مخصصة).
+    /// </summary>
     public double? PaperHeightMm { get; init; }
+
+    /// <summary>
+    /// اتجاه الصفحة: true للوضع الأفقي (Landscape)، وfalse أو null للوضع الرأسي (Portrait).
+    /// </summary>
     public bool? Landscape { get; init; }
+
+    /// <summary>
+    /// هوامش الطباعة المخصصة لجميع جوانب الصفحة بالمليمتر.
+    /// </summary>
     public PrintMargins? Margins { get; init; }
 
+    /// <summary>
+    /// معالجة وتوحيد خيارات الصفحة بإزالة الفراغات وإرجاع كائن فارغ إذا لم تتضمن أي إعدادات خاصة.
+    /// </summary>
+    /// <returns>نسخة موحدة من الخيارات، أو null إذا كانت جميع الخيارات خالية.</returns>
     public PrintPageOptions? Normalize()
     {
         var normalized = this with
@@ -21,6 +46,11 @@ public sealed record PrintPageOptions
             ? null : normalized;
     }
 
+    /// <summary>
+    /// التحقق من توافق وصحة خيارات الصفحة مع نوع المستند المستهدف وحدود الأبعاد الهندسية المسموحة.
+    /// </summary>
+    /// <param name="documentType">نوع المستند المراد طباعته.</param>
+    /// <returns>رسالة الخطأ التوضيحية بالعربية إن وجدت، أو null إذا كانت الخيارات صالحة بالكامل.</returns>
     public string? Validate(PrintDocumentType documentType)
     {
         if (PaperName?.Length > 64 || PaperName?.Any(char.IsControl) == true)
@@ -61,12 +91,34 @@ public sealed record PrintPageOptions
     }
 }
 
+/// <summary>
+/// يمثل قيم هوامش الصفحة بالمليمتر لجميع الحواف (اليسار، اليمين، الأعلى، الأسفل).
+/// </summary>
 public sealed record PrintMargins
 {
+    /// <summary>
+    /// الهامش الأيسر بالمليمتر.
+    /// </summary>
     public double? LeftMm { get; init; }
+
+    /// <summary>
+    /// الهامش الأيمن بالمليمتر.
+    /// </summary>
     public double? RightMm { get; init; }
+
+    /// <summary>
+    /// الهامش العلوي بالمليمتر.
+    /// </summary>
     public double? TopMm { get; init; }
+
+    /// <summary>
+    /// الهامش السفلي بالمليمتر.
+    /// </summary>
     public double? BottomMm { get; init; }
 
+    /// <summary>
+    /// التحقق مما إذا كان هناك أي هامش محدد بقيمة غير فارغة.
+    /// </summary>
+    /// <returns>صحيح إذا كان أي هامش يحتوي على قيمة؛ وإلا خطأ.</returns>
     public bool HasValues() => LeftMm is not null || RightMm is not null || TopMm is not null || BottomMm is not null;
 }

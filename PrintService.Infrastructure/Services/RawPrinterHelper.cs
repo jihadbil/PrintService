@@ -3,13 +3,22 @@ using System.Runtime.InteropServices;
 
 namespace PrintService.Infrastructure.Services;
 
+/// <summary>
+/// فئة مساعدة للتواصل المباشر مع مكتبة winspool.drv لإرسال بايتات الطباعة الخام (ESC/POS) لمخزن طابعات ويندوز.
+/// </summary>
 public static class RawPrinterHelper
 {
+    /// <summary>
+    /// بنية بيانات معلومات المستند المرسل لمخزن طابعة ويندوز عبر دالة StartDocPrinter.
+    /// </summary>
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     internal sealed class DocInfo
     {
+        /// <summary>اسم المستند كما يظهر في قائمة انتظار الطابعة.</summary>
         [MarshalAs(UnmanagedType.LPWStr)] public string? DocumentName;
+        /// <summary>مسار ملف الإخراج (اختياري).</summary>
         [MarshalAs(UnmanagedType.LPWStr)] public string? OutputFile;
+        /// <summary>نوع البيانات المرسلة (الافتراضي: RAW للبيانات الخام).</summary>
         [MarshalAs(UnmanagedType.LPWStr)] public string DataType = "RAW";
     }
 
@@ -30,12 +39,31 @@ public static class RawPrinterHelper
     [DllImport("winspool.drv", SetLastError = true)]
     private static extern bool WritePrinter(IntPtr printer, IntPtr data, int count, out int written);
 
+    /// <summary>
+    /// إرسال مصفوفة بايتات خام مباشرة إلى الطابعة المحددة بدون رمز إلغاء.
+    /// </summary>
+    /// <param name="printerName">اسم الطابعة في نظام ويندوز.</param>
+    /// <param name="bytes">البايتات الخام المراد إرسالها (مثل أوامر ESC/POS).</param>
+    /// <param name="documentName">اسم المستند في قائمة انتظار الطابعة.</param>
+    /// <returns>صحيح إذا تم الإرسال بنجاح.</returns>
     public static bool SendBytesToPrinter(string printerName, byte[] bytes, string documentName = "RAW_PRINT_JOB")
     {
         Submit(printerName, bytes, documentName, CancellationToken.None);
         return true;
     }
 
+    /// <summary>
+    /// إرسال وكتابة بايتات الطباعة الخام مباشرة إلى مخزن الطابعة (Spooler) مع دعم الإلغاء وتتبع معرف المهمة.
+    /// </summary>
+    /// <param name="printerName">اسم الطابعة في نظام ويندوز.</param>
+    /// <param name="bytes">مصفوفة بايتات البيانات الخام.</param>
+    /// <param name="documentName">اسم المهمة في مخزن ويندوز.</param>
+    /// <param name="ct">رمز إلغاء العملية.</param>
+    /// <returns>رقم عملية الطباعة المسجل في مخزن ويندوز (Spooler Job ID).</returns>
+    /// <exception cref="ArgumentNullException">إذا كانت مصفوفة البايتات فارغة (null).</exception>
+    /// <exception cref="ArgumentException">إذا كان طول مصفوفة البايتات صفراً.</exception>
+    /// <exception cref="Win32Exception">إذا فشل أحد نداءات Win32 API.</exception>
+    /// <exception cref="IOException">إذا لم يكتب مخزن الطباعة عدد البايتات المتوقع بالكامل.</exception>
     public static uint Submit(string printerName, byte[] bytes, string documentName, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(bytes);
@@ -74,5 +102,10 @@ public static class RawPrinterHelper
         }
     }
 
+    /// <summary>
+    /// إنشاء كائن استثناء Win32Exception مفصل يحتوي على رمز الخطأ الأصلي من نظام التشغيل واسم العملية التي أخفقت.
+    /// </summary>
+    /// <param name="operation">اسم عملية أو دالة Win32 API التي فشلت.</param>
+    /// <returns>كائن Win32Exception يحمل تفاصيل الخطأ.</returns>
     internal static Win32Exception Error(string operation) => new(Marshal.GetLastPInvokeError(), operation);
 }

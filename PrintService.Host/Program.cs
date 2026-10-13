@@ -128,6 +128,10 @@ app.MapGet("/api/health", async (IPrinterService service, CancellationToken ct) 
     }, statusCode: healthy ? 200 : 503);
 });
 
+/// <summary>
+/// الاستعلام عن حالة مهمة طباعة بالمعرف (GET /api/jobs/{jobId}?systemId=...)
+/// يتيح لتطبيقات الويب متابعة تقدم أمر الطباعة والتأكد من إرسالها دون تكرار.
+/// </summary>
 app.MapGet("/api/jobs/{jobId}", async (string jobId, string? systemId, IPrinterService service, CancellationToken ct) =>
 {
     if (jobId.Length > 128) return Results.BadRequest(new { message = "JobId طويل جداً." });
@@ -136,6 +140,11 @@ app.MapGet("/api/jobs/{jobId}", async (string jobId, string? systemId, IPrinterS
     return job is null ? Results.NotFound(new { message = "المهمة غير موجودة." }) : Results.Ok(job);
 });
 
+/// <summary>
+/// تحويل نتيجة معالجة أمر الطباعة إلى استجابة HTTP متوافقة مع رمز الحالة المناسب (200, 400, 409, 429, 503).
+/// </summary>
+/// <param name="result">كائن نتيجة معالجة أمر الطباعة.</param>
+/// <returns>استجابة IResult بصيغة JSON مع رمز الحالة المطابق.</returns>
 static IResult PrintResponse(PrintJobResult result) => Results.Json(result, statusCode: result.Success ? 200 : result.Status switch
 {
     "Conflict" => 409,

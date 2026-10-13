@@ -8,7 +8,10 @@ using SkiaSharp;
 
 namespace PrintService.Infrastructure.Services;
 
-/// <summary>Validates, journals and serializes print jobs independently of the HTTP connection.</summary>
+/// <summary>
+/// خدمة إدارة وتنسيق عمليات الطباعة في ويندوز؛ تتولى التحقق من الطلبات، وتدوينها في السجل الدائم،
+/// وضمان عدم تكرار المهام (Idempotency)، وعزل الطابعات لمنع التداخل والتزامن غير المرغوب فيه.
+/// </summary>
 public sealed class WindowsPrinterService : IPrinterService
 {
     private readonly ILogger<WindowsPrinterService> _logger;
@@ -22,6 +25,15 @@ public sealed class WindowsPrinterService : IPrinterService
     private readonly Dictionary<string, (string Fingerprint, Task<PrintJobResult> Task)> _active = [];
     private readonly Dictionary<string, SemaphoreSlim> _printerLocks = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// تهيئة خدمة الطابعات وربطها بسجل المهام ومحرك الطباعة الخلفي وكتالوج الطابعات والخيارات المحددة.
+    /// </summary>
+    /// <param name="logger">مسجل الأحداث والأنشطة.</param>
+    /// <param name="catalog">كتالوج وفهرس الطابعات المثبتة في ويندوز.</param>
+    /// <param name="backend">محرك الطباعة الخلفي الفعلي.</param>
+    /// <param name="store">مخزن وسجل مهام الطباعة الدائم.</param>
+    /// <param name="options">خيارات وحدود خدمة الطباعة.</param>
+    /// <param name="shutdown">رمز إلغاء يراقب إيقاف تشغيل الخادم.</param>
     public WindowsPrinterService(ILogger<WindowsPrinterService> logger, IPrinterCatalog catalog,
         IPrintBackend backend, PrintJobStore store, PrintingOptions options, CancellationToken shutdown = default)
     {
@@ -30,9 +42,18 @@ public sealed class WindowsPrinterService : IPrinterService
         _workers = new(options.MaxConcurrentPrinters);
     }
 
+    /// <summary>
+    /// استعلام قائمة بجميع الطابعات المثبتة في ويندوز مع تفاصيلها وأحجام الورق المدعومة.
+    /// </summary>
+    /// <param name="cancellationToken">رمز إلغاء العملية إن وجد.</param>
+    /// <returns>قائمة غير قابلة للتعديل ببيانات الطابعات.</returns>
     public Task<IReadOnlyList<PrinterInfo>> GetPrintersAsync(CancellationToken cancellationToken = default) =>
         _catalog.GetPrintersAsync(cancellationToken);
 
+    /// <summary>
+    /// الانتظار حتى اكتمال جميع مهام الطباعة الجارية قبل إيقاف الخدمة بأمان (Graceful Shutdown).
+    /// </summary>
+    /// <param name="ct">رمز إلغاء يحدد مهلة الانتظار القصوى.</param>
     public async Task DrainAsync(CancellationToken ct)
     {
         await _gate.WaitAsync(ct);
@@ -42,12 +63,30 @@ public sealed class WindowsPrinterService : IPrinterService
         await Task.WhenAll(tasks).WaitAsync(ct);
     }
 
+    /// <summary>
+    /// جلب بيانات الطابعة الافتراضية المحددة في نظام ويندوز.
+    /// </summary>
+    /// <param name="cancellationToken">رمز إلغاء العملية إن وجد.</param>
+    /// <returns>بيانات الطابعة الافتراضية، أو null في حال عدم وجود أي طابعة مسجلة في النظام.</returns>
     public async Task<PrinterInfo?> GetDefaultPrinterAsync(CancellationToken cancellationToken = default) =>
         (await GetPrintersAsync(cancellationToken)).FirstOrDefault(p => p.IsDefault);
 
+    /// <summary>
+    /// الاستعلام عن حالة ونتيجة مهمة طباعة سابقة باستخدام معرف العملية فقط.
+    /// </summary>
+    /// <param name="jobId">المعرف الفريد لعملية الطباعة.</param>
+    /// <param name="cancellationToken">رمز إلغاء العملية إن وجد.</param>
+    /// <returns>بيانات وتفاصيل نتيجة عملية الطباعة، أو null إذا لم تكن موجودة في السجل.</returns>
     public Task<PrintJobResult?> GetJobAsync(string jobId, CancellationToken cancellationToken = default) =>
         GetJobAsync(jobId, null, cancellationToken);
 
+    /// <summary>
+    /// الاستعلام عن حالة ونتيجة مهمة طباعة سابقة باستخدام معرف العملية ونطاق النظام الفرعي.
+    /// </summary>
+    /// <param name="jobId">المعرف الفريد لعملية الطباعة.</param>
+    /// <param name="systemId">معرف أو نطاق النظام الفرعي.</param>
+    /// <param name="cancellationToken">رمز إلغاء العملية إن وجد.</param>
+    /// <returns>بيانات وتفاصيل نتيجة عملية الطباعة، أو null إذا لم تكن مسجلة تحت هذا النطاق.</returns>
     public async Task<PrintJobResult?> GetJobAsync(string jobId, string? systemId, CancellationToken cancellationToken = default)
     {
         await _gate.WaitAsync(cancellationToken);
@@ -60,6 +99,12 @@ public sealed class WindowsPrinterService : IPrinterService
         finally { _gate.Release(); }
     }
 
+    /// <summary>
+    /// استقبال والتحقق من طلب أمر الطباعة وإدراجه في قائمة الانتظار وتنفيذه بأمان دون تكرار.
+    /// </summary>
+    /// <param name="request">طلب أمر الطباعة المتضمن اسم الطابعة، نوع المستند، ومحتواه المشفر بنظام Base64.</param>
+    /// <param name="cancellationToken">رمز إلغاء اتصال العميل.</param>
+    /// <returns>نتيجة معالجة أمر الطباعة مع التوضيح وحالة النجاح أو الفشل.</returns>
     public async Task<PrintJobResult> PrintAsync(PrintJobRequest request, CancellationToken cancellationToken = default)
     {
         if (request is null) return PrintJobResult.Fail("", null, "طلب الطباعة غير صالح.");
@@ -123,6 +168,14 @@ public sealed class WindowsPrinterService : IPrinterService
         return await task.WaitAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// معالجة وتنفيذ مهمة الطباعة في الخلفية عبر حجز قفل الطابعة وإرسال كافة النسخ المطلوبة إلى المحرك الخلفي وحفظ النتائج في السجل.
+    /// </summary>
+    /// <param name="job">طلب أمر الطباعة بعد التحقق والعزل.</param>
+    /// <param name="content">مصفوفة بايتات محتوى المستند.</param>
+    /// <param name="fingerprint">بصمة التجزئة الفريدة للطلب.</param>
+    /// <param name="result">كائن النتيجة لتحديث بياناته تدريجياً.</param>
+    /// <returns>النتيجة النهائية لمعالجة أمر الطباعة.</returns>
     private async Task<PrintJobResult> ExecuteAsync(PrintJobRequest job, byte[] content,
         string fingerprint, PrintJobResult result)
     {
@@ -197,6 +250,11 @@ public sealed class WindowsPrinterService : IPrinterService
         return result;
     }
 
+    /// <summary>
+    /// حفظ وتحديث حالة النتيجة في السجل الدائم بشكل متزامن وآمن.
+    /// </summary>
+    /// <param name="fingerprint">بصمة التجزئة الخاصة بالطلب.</param>
+    /// <param name="result">كائن النتيجة المراد تدوينه.</param>
     private async Task SaveAsync(string fingerprint, PrintJobResult result)
     {
         await _gate.WaitAsync();
@@ -204,6 +262,12 @@ public sealed class WindowsPrinterService : IPrinterService
         finally { _gate.Release(); }
     }
 
+    /// <summary>
+    /// التحقق الشامل من صحة مدخلات أمر الطباعة (الهوية، أبعاد الورق، عدد النسخ، العنوان، ومحتوى Base64).
+    /// </summary>
+    /// <param name="job">طلب أمر الطباعة.</param>
+    /// <param name="content">المصفوفة الثنائية المفكوكة من Base64 إن كان الطلب صالحاً.</param>
+    /// <returns>نص رسالة الخطأ إن وجد، أو null إذا كان الطلب صالحاً بالكامل.</returns>
     private string? Validate(PrintJobRequest job, out byte[] content)
     {
         content = [];
@@ -245,6 +309,11 @@ public sealed class WindowsPrinterService : IPrinterService
         return null;
     }
 
+    /// <summary>
+    /// إنشاء كائن نتيجة يوضح حدوث تضارب بسبب إعادة استخدام نفس JobId لمحتوى أو خيارات مختلفة.
+    /// </summary>
+    /// <param name="job">طلب أمر الطباعة المتضارب.</param>
+    /// <returns>كائن PrintJobResult بحالة Conflict ورسالة توضيحية.</returns>
     private static PrintJobResult Conflict(PrintJobRequest job)
     {
         var result = PrintJobResult.Fail(job.JobId, job.PrinterName, "استُخدم JobId نفسه لمحتوى أو إعدادات مختلفة.");
@@ -253,6 +322,12 @@ public sealed class WindowsPrinterService : IPrinterService
         return result;
     }
 
+    /// <summary>
+    /// معالجة وتصحيح حالة المهام التي توقفت في منتصف المعالجة نتيجة إعادة تشغيل الخدمة إلى حالة Unknown لتفادي التكرار الصامت.
+    /// </summary>
+    /// <param name="result">كائن النتيجة المسجل.</param>
+    /// <param name="active">ما إذا كانت المهمة لا تزال قيد التنفيذ في الذاكرة حالياً.</param>
+    /// <returns>كائن النتيجة بعد تحديث حالته إن لزم الأمر.</returns>
     private static PrintJobResult Recover(PrintJobResult result, bool active)
     {
         if (!active && result.Status is "Queued" or "Processing")

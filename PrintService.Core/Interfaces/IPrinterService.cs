@@ -7,7 +7,21 @@ namespace PrintService.Core.Interfaces;
 /// </summary>
 public interface IPrinterService
 {
+    /// <summary>
+    /// الاستعلام عن حالة ونتيجة عملية طباعة سابقة باستخدام معرف العملية.
+    /// </summary>
+    /// <param name="jobId">المعرف الفريد لعملية الطباعة.</param>
+    /// <param name="cancellationToken">رمز إلغاء العملية إن وجد.</param>
+    /// <returns>بيانات وتفاصيل نتيجة عملية الطباعة، أو null إذا لم تكن العملية موجودة في السجل.</returns>
     Task<PrintJobResult?> GetJobAsync(string jobId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// الاستعلام عن حالة ونتيجة عملية طباعة سابقة باستخدام معرف العملية ونطاق النظام الفرعي (SystemId).
+    /// </summary>
+    /// <param name="jobId">المعرف الفريد لعملية الطباعة.</param>
+    /// <param name="systemId">معرف النظام أو التطبيق الفرعي المستدعي لعزل العمليات المتشابهة.</param>
+    /// <param name="cancellationToken">رمز إلغاء العملية إن وجد.</param>
+    /// <returns>بيانات وتفاصيل نتيجة عملية الطباعة، أو null إذا لم تكن العملية مسجلة تحت هذا النطاق.</returns>
     Task<PrintJobResult?> GetJobAsync(string jobId, string? systemId, CancellationToken cancellationToken = default);
     /// <summary>
     /// جلب قائمة بجميع الطابعات المثبتة في نظام ويندوز مع تفاصيلها وأحجام الورق المدعومة.

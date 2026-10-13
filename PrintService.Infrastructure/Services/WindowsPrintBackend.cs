@@ -4,8 +4,22 @@ using PrintService.Core.Models;
 
 namespace PrintService.Infrastructure.Services;
 
+/// <summary>
+/// تنفيذ محرك الطباعة لنظام ويندوز؛ يدعم أوامر ESC/POS المباشرة، ومستندات PDF عبر عملية منفصلة، والنصوص والصور عبر GDI.
+/// </summary>
+/// <param name="options">خيارات وتكوينات الطباعة المعتمدة للخدمة.</param>
 public sealed class WindowsPrintBackend(PrintingOptions options) : IPrintBackend
 {
+    /// <summary>
+    /// إرسال ومعالجة أمر الطباعة وتمريره إلى الطابعة المطلوبة عبر المحرك المخصص لنوع المستند.
+    /// </summary>
+    /// <param name="request">طلب أمر الطباعة المتضمن الخيارات والنوع والعنوان.</param>
+    /// <param name="content">المحتوى الثنائي للمستند بعد فك ترميز Base64.</param>
+    /// <param name="printerName">اسم الطابعة المستهدفة في نظام ويندوز.</param>
+    /// <param name="ct">رمز إلغاء العملية.</param>
+    /// <returns>نتيجة الإرسال متضمنة رقم العملية في مخزن الطباعة ومسار ملف الإخراج إن وجد.</returns>
+    /// <exception cref="PrintPreparationException">إذا كانت الطابعة تتطلب تفاعلاً مرئياً أو خيارات غير متوافقة.</exception>
+    /// <exception cref="PrintSubmissionException">إذا تعذر تأكيد وصول الأمر بنجاح إلى مخزن ويندوز.</exception>
     public async Task<BackendPrintResult> SubmitAsync(PrintJobRequest request, byte[] content,
         string printerName, CancellationToken ct)
     {
@@ -73,6 +87,10 @@ public sealed class WindowsPrintBackend(PrintingOptions options) : IPrintBackend
         return new(jobId, output);
     }
 
+    /// <summary>
+    /// البحث عن المسار التنفيذي لبرنامج تشغيل ومحرك طباعة PDF الخارجي (SumatraPDF) في المسارات القياسية أو المكونة.
+    /// </summary>
+    /// <returns>المسار الكامل للملف التنفيذي إن وجد، أو null إذا لم يكن مثبتاً.</returns>
     public string? FindPdfExecutable()
     {
         if (options.PdfExecutablePath is not null)
@@ -87,6 +105,11 @@ public sealed class WindowsPrintBackend(PrintingOptions options) : IPrintBackend
         return candidates.FirstOrDefault(File.Exists);
     }
 
+    /// <summary>
+    /// توليد وسائط وإعدادات سطر الأوامر الخاصة بطباعة PDF وفقاً لخيارات الصفحة المحددة.
+    /// </summary>
+    /// <param name="page">خيارات الصفحة المطلوبة.</param>
+    /// <returns>سلسلة نصية تحتوي على معاملات الطباعة، أو null إذا لم تتطلب إعدادات خاصة.</returns>
     public static string? PdfPrintSettings(PrintPageOptions? page)
     {
         // Copies belong to the API request; embedded PDF ViewerPreferences must not multiply them.
@@ -95,6 +118,13 @@ public sealed class WindowsPrintBackend(PrintingOptions options) : IPrintBackend
         return values.Count == 0 ? null : string.Join(',', values);
     }
 
+    /// <summary>
+    /// طباعة مستند PDF عبر استدعاء محرك PDF الخارجي في عملية منفصلة صامتة ومراقبة اكتمالها ومهلتها.
+    /// </summary>
+    /// <param name="printer">اسم الطابعة في ويندوز.</param>
+    /// <param name="content">مصفوفة بايتات ملف PDF.</param>
+    /// <param name="page">خيارات مقاس الورق المحددة للطلب.</param>
+    /// <param name="ct">رمز إلغاء العملية.</param>
     private async Task PrintPdfAsync(string printer, byte[] content, PrintPageOptions? page, CancellationToken ct)
     {
         string executable = FindPdfExecutable() ?? throw new PrintPreparationException(

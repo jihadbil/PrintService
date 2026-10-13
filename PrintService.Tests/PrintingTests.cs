@@ -8,12 +8,24 @@ using Xunit;
 
 namespace PrintService.Tests;
 
+/// <summary>
+/// اختبارات الوحدة والتكامل الآلية لخدمة الطباعة؛ تتحقق من معالجة الطلبات، ومنع التكرار (Idempotency)،
+/// وعزل النطاقات، وسلوك المهلة، وإدارة قوائم الانتظار، واستقرار السجل الدائم.
+/// </summary>
 public sealed class PrintingTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "PrintService.Tests", Guid.NewGuid().ToString("N"));
     private readonly List<PrintJobStore> _stores = [];
+
+    /// <summary>
+    /// إنشاء نموذج طلب طباعة تجريبي افتراضي بنص بسيط.
+    /// </summary>
     private static PrintJobRequest Job() => new() { DocumentType = PrintDocumentType.Text,
         ContentBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes("فاتورة اختبار\nTotal: 15")) };
+
+    /// <summary>
+    /// تهيئة نسخة معزولة من WindowsPrinterService مع ربطها ببيئة الاختبار الوهمية وسجل مؤقت.
+    /// </summary>
     private WindowsPrinterService Service(FakeBackend backend, PrintingOptions? options = null, FakeCatalog? catalog = null)
     {
         options ??= new() { DataDirectory = _root };
@@ -21,6 +33,9 @@ public sealed class PrintingTests : IDisposable
         return new(NullLogger<WindowsPrinterService>.Instance, catalog ?? new(), backend, store, options);
     }
 
+    /// <summary>
+    /// التأكد من أن إعادة إرسال طلب مكرر بعد اكتماله وإعادة تشغيل الخدمة يعيد نفس النتيجة دون إعادة الطباعة على الورق.
+    /// </summary>
     [Fact]
     public async Task DuplicateAfterCompletionAndRestartDoesNotPrintAgain()
     {
@@ -31,6 +46,9 @@ public sealed class PrintingTests : IDisposable
         Assert.True((await Service(backend).PrintAsync(job)).Success); Assert.Equal(1, backend.Calls);
     }
 
+    /// <summary>
+    /// التأكد من أن الطلبات المتطابقة المتزامنة تشترك في نفس مهمة الإرسال ولا تتكرر.
+    /// </summary>
     [Fact]
     public async Task ConcurrentDuplicatesShareOneSubmission()
     {
@@ -41,6 +59,9 @@ public sealed class PrintingTests : IDisposable
         Assert.All(await Task.WhenAll(first, second), result => Assert.True(result.Success)); Assert.Equal(1, backend.Calls);
     }
 
+    /// <summary>
+    /// التأكد من أن انقطاع اتصال العميل (Disconnect/Cancel) بعد قبول المهمة لا يلغي إرسالها لمخزن الطباعة.
+    /// </summary>
     [Fact]
     public async Task DisconnectDoesNotCancelAcceptedJob()
     {
@@ -52,6 +73,9 @@ public sealed class PrintingTests : IDisposable
         backend.Release.SetResult(); Assert.True((await service.PrintAsync(job)).Success); Assert.Equal(1, backend.Calls);
     }
 
+    /// <summary>
+    /// التأكد من أن إرسال محتوى مختلف بنفس معرف العملية (JobId) يؤدي إلى تضارب (Conflict).
+    /// </summary>
     [Fact]
     public async Task ChangedContentWithSameIdIsConflict()
     {
@@ -60,6 +84,9 @@ public sealed class PrintingTests : IDisposable
         Assert.Equal("Conflict", (await service.PrintAsync(job)).Status); Assert.Equal(1, backend.Calls);
     }
 
+    /// <summary>
+    /// التأكد من استقلالية نطاقات الأنظمة (SystemId) وعزل المعرفات وثباتها بعد إعادة تشغيل الخدمة.
+    /// </summary>
     [Fact]
     public async Task SystemNamespacesAreIndependentAndPersistAcrossRestart()
     {
@@ -78,6 +105,9 @@ public sealed class PrintingTests : IDisposable
         Assert.True((await service.PrintAsync(accounting)).Success); Assert.Equal(3, backend.Calls);
     }
 
+    /// <summary>
+    /// التحقق من رفض أي SystemId غير مطابق للمعايير الأمنية دون استدعاء محرك الطباعة.
+    /// </summary>
     [Theory]
     [InlineData("bad:scope")] [InlineData("bad/scope")] [InlineData("نظام")]
     public async Task InvalidSystemIdIsRejectedWithoutPrinting(string scope)
@@ -86,6 +116,9 @@ public sealed class PrintingTests : IDisposable
         Assert.Equal("ValidationFailed", (await Service(backend).PrintAsync(job)).Status); Assert.Equal(0, backend.Calls);
     }
 
+    /// <summary>
+    /// التأكد من حدوث تضارب عند تغيير خيارات الصفحة، مع التوافق التام إذا كانت الخيارات فارغة.
+    /// </summary>
     [Fact]
     public async Task PageChangesConflictButEmptyPageIsCompatibleWithLegacyJob()
     {
@@ -96,6 +129,9 @@ public sealed class PrintingTests : IDisposable
         Assert.Equal("Conflict", (await service.PrintAsync(job)).Status); Assert.Equal(1, backend.Calls);
     }
 
+    /// <summary>
+    /// التأكد من فصل وتجريد كائنات الخيارات والنطاق قبل وضع المهمة في قائمة الانتظار لتفادي تعديلها لاحقاً.
+    /// </summary>
     [Fact]
     public async Task PageAndSystemAreDetachedBeforeQueueing()
     {
@@ -110,6 +146,9 @@ public sealed class PrintingTests : IDisposable
         Assert.Equal(2, backend.LastRequest.Page.Margins!.LeftMm);
     }
 
+    /// <summary>
+    /// التحقق من أن خيارات الصفحة غير الصالحة يتم رفضها في مرحلة التحقق ولا تصل لمحرك الطباعة.
+    /// </summary>
     [Fact]
     public async Task InvalidPageOptionsNeverReachBackend()
     {
@@ -126,6 +165,9 @@ public sealed class PrintingTests : IDisposable
         Assert.Equal(0, backend.Calls);
     }
 
+    /// <summary>
+    /// التأكد من أن محركات PDF و Raw ترفض الخيارات غير المدعومة ولا تتجاهلها بصمت.
+    /// </summary>
     [Fact]
     public void PdfAndRawDoNotSilentlyIgnoreUnsupportedLayout()
     {
@@ -137,6 +179,9 @@ public sealed class PrintingTests : IDisposable
         Assert.Equal("1x,ignore-pdf-print-settings", WindowsPrintBackend.PdfPrintSettings(null));
     }
 
+    /// <summary>
+    /// التأكد من فحص عدد النسخ المطلوبة والتأكد من وقوعها ضمن النطاق المسموح قبل الإرسال.
+    /// </summary>
     [Theory]
     [InlineData(0)] [InlineData(-1)] [InlineData(11)] [InlineData(int.MaxValue)]
     public async Task CopiesAreValidatedBeforeSubmission(int copies)
@@ -145,6 +190,9 @@ public sealed class PrintingTests : IDisposable
         Assert.Equal("ValidationFailed", (await service.PrintAsync(job)).Status); Assert.Equal(0, backend.Calls);
     }
 
+    /// <summary>
+    /// التأكد من رفض أنواع المستندات المجهولة وعدم تمريرها كأوامر خام بالخطأ.
+    /// </summary>
     [Theory]
     [InlineData(0)] [InlineData(99)]
     public async Task UnknownTypesCannotFallThroughToRaw(int type)
@@ -153,6 +201,9 @@ public sealed class PrintingTests : IDisposable
         Assert.False((await service.PrintAsync(job)).Success); Assert.Equal(0, backend.Calls);
     }
 
+    /// <summary>
+    /// التأكد من رفض المحتويات الفارغة أو غير المتوافقة مع ترميز Base64.
+    /// </summary>
     [Theory]
     [InlineData("")] [InlineData("not-base64!")] [InlineData("    ")] [InlineData("/w==")]
     public async Task InvalidContentIsRejected(string content)
@@ -161,6 +212,9 @@ public sealed class PrintingTests : IDisposable
         Assert.Equal("ValidationFailed", (await service.PrintAsync(job)).Status); Assert.Equal(0, backend.Calls);
     }
 
+    /// <summary>
+    /// التأكد من أن مستندات PDF لا يتم تحويلها تلقائياً إلى نص بل تتطلب محتوى PDF أصلي.
+    /// </summary>
     [Fact]
     public async Task PdfCannotSilentlyBecomeText()
     {
@@ -168,6 +222,9 @@ public sealed class PrintingTests : IDisposable
         Assert.False((await service.PrintAsync(job)).Success); Assert.Equal(0, backend.Calls);
     }
 
+    /// <summary>
+    /// التأكد من تطبيق القيود والحدود القصوى على حجم المستندات وعدد بكسلات الصور.
+    /// </summary>
     [Fact]
     public async Task DocumentSizeAndImageDimensionsAreBounded()
     {
@@ -179,6 +236,9 @@ public sealed class PrintingTests : IDisposable
         Assert.False((await service.PrintAsync(job)).Success); Assert.Equal(0, backend.Calls);
     }
 
+    /// <summary>
+    /// التأكد من فشل العملية إذا لم يتم تحديد اسم طابعة ولم تكن هناك طابعة افتراضية مثبتة في النظام.
+    /// </summary>
     [Fact]
     public async Task MissingDefaultDoesNotSelectArbitraryPrinter()
     {
@@ -187,6 +247,9 @@ public sealed class PrintingTests : IDisposable
         Assert.Equal("Failed", (await service.PrintAsync(Job())).Status); Assert.Equal(0, backend.Calls);
     }
 
+    /// <summary>
+    /// التأكد من تتبع الفشل الجزئي (أثناء طباعة نسخ متعددة) وعدم إعادة إرسال المهمة من البداية.
+    /// </summary>
     [Fact]
     public async Task PartialFailureIsTrackedAndNeverReplayed()
     {
@@ -196,6 +259,9 @@ public sealed class PrintingTests : IDisposable
         await service.PrintAsync(job); Assert.Equal(2, backend.Calls);
     }
 
+    /// <summary>
+    /// التأكد من الاحتفاظ بمعرف مهمة ويندوز في حال كان ناتج الإرسال غير مؤكد.
+    /// </summary>
     [Fact]
     public async Task UncertainOutputRetainsKnownWindowsJobId()
     {
@@ -205,6 +271,9 @@ public sealed class PrintingTests : IDisposable
         Assert.Equal(0, result.CompletedCopies);
     }
 
+    /// <summary>
+    /// التأكد من أن المهام التي توقفت في منتصف المعالجة قبل إعادة التشغيل تتحول إلى Unknown دون إعادة إرسالها.
+    /// </summary>
     [Fact]
     public async Task UnfinishedJobAfterRestartBecomesUnknownWithoutSubmission()
     {
@@ -215,6 +284,9 @@ public sealed class PrintingTests : IDisposable
         Assert.Equal("Unknown", (await restarted.PrintAsync(job)).Status); Assert.Equal(1, backend.Calls);
     }
 
+    /// <summary>
+    /// التأكد من أن وصول قائمة الانتظار لحدها الأقصى يرفض المهام الجديدة (Busy) مع السماح بالطلبات المكررة.
+    /// </summary>
     [Fact]
     public async Task QueueLimitRejectsNewJobsButAllowsDuplicates()
     {
@@ -225,6 +297,9 @@ public sealed class PrintingTests : IDisposable
         var replay = service.PrintAsync(job); backend.Release.SetResult(); await Task.WhenAll(first, replay); Assert.Equal(1, backend.Calls);
     }
 
+    /// <summary>
+    /// التأكد من أن المهام المختلفة على نفس الطابعة تنفذ بتسلسل تام ولا تتداخل أبداً.
+    /// </summary>
     [Fact]
     public async Task DifferentJobsOnSamePrinterNeverOverlap()
     {
@@ -233,6 +308,9 @@ public sealed class PrintingTests : IDisposable
         Assert.Equal(8, backend.Calls); Assert.Equal(1, backend.MaxActive);
     }
 
+    /// <summary>
+    /// اختبار تمييز حالات الطابعة (غير متصلة، نفاد الورق، مشغولة) بدقة.
+    /// </summary>
     [Fact]
     public void StatusDistinguishesOfflinePaperOutAndBusy()
     {
@@ -241,12 +319,18 @@ public sealed class PrintingTests : IDisposable
         Assert.True(WindowsPrinterCatalog.DescribeStatus(512).Ready); Assert.False(WindowsPrinterCatalog.DescribeStatus(0, true).Ready);
     }
 
+    /// <summary>
+    /// التأكد من اقتصار أسماء الورق عند أول محرف فارغ (null) لتجنب ظهور بايتات الذاكرة غير المهيأة.
+    /// </summary>
     [Fact]
     public void PaperNamesStopAtFirstNullInsteadOfExposingBufferPadding()
     {
         Assert.Equal("Custom Size", WindowsPrinterCatalog.DecodePaperName("Custom Size\0uninitialized data\0"));
     }
 
+    /// <summary>
+    /// التأكد من الحفاظ على النسبة التناسبية للصورة ودعم النصوص اليونيكود والعربية أثناء التخطيط.
+    /// </summary>
     [Fact]
     public void LayoutPreservesImageRatioAndUnicodeText()
     {
@@ -259,6 +343,9 @@ public sealed class PrintingTests : IDisposable
         Assert.Throws<InvalidOperationException>(() => DocumentLayout.WrapText("A", 0.5f, _ => 1));
     }
 
+    /// <summary>
+    /// التأكد من أن سجل المهام يحجز قفلاً حصرياً يمنع تشغيل نسختين في نفس الوقت.
+    /// </summary>
     [Fact]
     public void JournalHasExclusiveProcessLease()
     {
@@ -266,6 +353,9 @@ public sealed class PrintingTests : IDisposable
         Assert.Throws<IOException>(() => new PrintJobStore(options));
     }
 
+    /// <summary>
+    /// التأكد من فشل العملية بوضوح عند عدم العثور على محرك PDF الخارجي.
+    /// </summary>
     [Fact]
     public async Task MissingPdfEngineIsExplicitFailure()
     {
@@ -274,6 +364,9 @@ public sealed class PrintingTests : IDisposable
         await Assert.ThrowsAsync<PrintPreparationException>(() => backend.SubmitAsync(job, "%PDF-1.7"u8.ToArray(), "Test", default));
     }
 
+    /// <summary>
+    /// التأكد من فحص كود الخروج ومهلة تشغيل عملية PDF قبل حذف الملف المؤقت المدخل.
+    /// </summary>
     [Theory]
     [InlineData("Success")] [InlineData("Fail")] [InlineData("Timeout")]
     public async Task PdfProcessExitAndTimeoutAreCheckedBeforeDeletingInput(string behavior)
@@ -291,6 +384,9 @@ public sealed class PrintingTests : IDisposable
         Assert.Empty(Directory.GetFiles(Path.Combine(_root, "temporary")));
     }
 
+    /// <summary>
+    /// تحرير الموارد وحذف مجلدات الاختبار المؤقتة عند الانتهاء.
+    /// </summary>
     public void Dispose()
     {
         foreach (var store in _stores) store.Dispose();
@@ -299,6 +395,9 @@ public sealed class PrintingTests : IDisposable
             Directory.Delete(_root, recursive: true);
     }
 
+    /// <summary>
+    /// كتالوج طابعات وهمي لأغراض الاختبار.
+    /// </summary>
     private sealed class FakeCatalog : IPrinterCatalog
     {
         public bool HasDefault = true;
@@ -306,6 +405,9 @@ public sealed class PrintingTests : IDisposable
             [new() { Name = "Test", IsDefault = HasDefault, IsOnline = true, IsReady = true, StatusKnown = true }]);
     }
 
+    /// <summary>
+    /// محرك طباعة خلفي وهمي يحاكي سلوك استجابة وتأخير وفشل برامج التشغيل لأغراض الاختبار.
+    /// </summary>
     private sealed class FakeBackend : IPrintBackend
     {
         public int Calls, MaxActive, FailOnCall, Delay; private int _active;

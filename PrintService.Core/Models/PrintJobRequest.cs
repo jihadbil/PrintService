@@ -5,10 +5,14 @@ namespace PrintService.Core.Models;
 /// </summary>
 public class PrintJobRequest
 {
-    /// <summary>Optional application namespace, e.g. restaurant or accounting. Not an authentication credential.</summary>
+    /// <summary>
+    /// نطاق أو معرف النظام الاختياري (مثل: restaurant أو accounting) لعزل المهام وسجلات التدقيق دون أن يكون بيانات اعتماد.
+    /// </summary>
     public string? SystemId { get; set; }
 
-    /// <summary>Optional layout for this job only; business preferences belong to the calling application.</summary>
+    /// <summary>
+    /// خيارات وتخطيط الصفحة المخصصة لهذه العملية حصراً (أبعاد الورق، الهوامش، والاتجاه).
+    /// </summary>
     public PrintPageOptions? Page { get; set; }
 
     /// <summary>

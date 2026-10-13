@@ -5,9 +5,19 @@ using System.Runtime.InteropServices;
 
 namespace PrintService.Infrastructure.Services;
 
-/// <summary>Retained compatibility engine. System.Drawing.Printing is not supported in Windows services.</summary>
+/// <summary>
+/// محرك طباعة المستندات التوافقي المعتمد على PrintDocument من دوت نت (للتوافقية مع برامج التشغيل القديمة).
+/// </summary>
 public static class LegacyPrintDocumentEngine
 {
+    /// <summary>
+    /// إنشاء وتهيئة كائن PrintDocument مع ضبط إعدادات الورق والهوامش واسم الطابعة ومسار الإخراج.
+    /// </summary>
+    /// <param name="printer">اسم الطابعة المستهدفة.</param>
+    /// <param name="title">عنوان المهمة في مخزن الطباعة.</param>
+    /// <param name="output">مسار ملف الإخراج (في حال كانت الطابعة تطبع لملف)، أو null للطباعة العادية.</param>
+    /// <param name="page">خيارات تخطيط ومقاس وهوامش الصفحة إن وجدت.</param>
+    /// <returns>كائن PrintDocument جاهز لتنفيذ الرسم والطباعة.</returns>
     private static PrintDocument Create(string printer, string title, string? output, PrintPageOptions? page)
     {
         var document = new PrintDocument
@@ -56,6 +66,15 @@ public static class LegacyPrintDocumentEngine
     [DllImport("kernel32.dll")] private static extern bool GlobalUnlock(IntPtr handle);
     [DllImport("kernel32.dll")] private static extern IntPtr GlobalFree(IntPtr handle);
 
+    /// <summary>
+    /// طباعة نص منسق مع التفاف تلقائي للأسطر ودعم اللغات ثنائية الاتجاه (العربية والإنجليزية) باستخدام محرك PrintDocument.
+    /// </summary>
+    /// <param name="printer">اسم الطابعة المستهدفة.</param>
+    /// <param name="text">النص المراد طباعته.</param>
+    /// <param name="title">عنوان المهمة في مخزن الطباعة.</param>
+    /// <param name="output">مسار ملف الإخراج إن كانت الطابعة تطبع لملف.</param>
+    /// <param name="ct">رمز إلغاء العملية.</param>
+    /// <param name="pageOptions">خيارات تنسيق الصفحة وهوامشها.</param>
     public static void PrintText(string printer, string text, string title, string? output, CancellationToken ct, PrintPageOptions? pageOptions = null)
     {
         using var document = Create(printer, title, output, pageOptions);
@@ -88,6 +107,15 @@ public static class LegacyPrintDocumentEngine
         document.Print();
     }
 
+    /// <summary>
+    /// طباعة صورة وتوسيطها وملاءمة أبعادها مع مساحة الصفحة باستخدام محرك PrintDocument.
+    /// </summary>
+    /// <param name="printer">اسم الطابعة المستهدفة.</param>
+    /// <param name="bytes">مصفوفة بايتات الصورة.</param>
+    /// <param name="title">عنوان المهمة في مخزن الطباعة.</param>
+    /// <param name="output">مسار ملف الإخراج إن وجد.</param>
+    /// <param name="ct">رمز إلغاء العملية.</param>
+    /// <param name="pageOptions">خيارات تنسيق الصفحة وهوامشها.</param>
     public static void PrintImage(string printer, byte[] bytes, string title, string? output, CancellationToken ct, PrintPageOptions? pageOptions = null)
     {
         using var stream = new MemoryStream(bytes);
@@ -107,6 +135,11 @@ public static class LegacyPrintDocumentEngine
         document.Print();
     }
 
+    /// <summary>
+    /// حساب حدود ومساحة الرسم الفعلية القابلة للطباعة على الصفحة بعد خصم الهوامش وإزاحة الجهاز.
+    /// </summary>
+    /// <param name="page">كائن أحداث صفحة الطباعة.</param>
+    /// <returns>مستطيل يمثل مساحة الرسم الصالحة بوحدات الرسوميات.</returns>
     private static RectangleF Bounds(PrintPageEventArgs page)
     {
         var graphics = page.Graphics ?? throw new InvalidOperationException("لم يوفر محرك الطباعة سطح رسم.");

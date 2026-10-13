@@ -3,10 +3,19 @@ using PrintService.Core.Models;
 
 namespace PrintService.Infrastructure.Services;
 
-/// <summary>Job-local DEVMODE. Only IN/OUT_BUFFER; never UPDATE or PROMPT.</summary>
+/// <summary>
+/// إدارة وتطبيق إعدادات الورق واتجاه الطباعة المخصصة للمهمة الحالية عبر بنية DEVMODE في الذاكرة دون المساس بإعدادات النظام العامة.
+/// </summary>
 internal sealed class Win32PageSettings : IDisposable
 {
+    /// <summary>
+    /// مؤشر في الذاكرة غير المدارة لبنية DEVMODE المهيأة للمهمة.
+    /// </summary>
     public IntPtr DevMode { get; private set; }
+
+    /// <summary>
+    /// يحدد ما إذا كانت الصفحة مضبوطة بالوضع الأفقي (Landscape).
+    /// </summary>
     public bool Landscape { get; private set; }
     private const int Fields = 72, Orientation = 76, PaperSize = 78, PaperLength = 80, PaperWidth = 82;
     private const int DmOrientation = 1, DmPaperSize = 2, DmPaperLength = 4, DmPaperWidth = 8, DmFormName = 0x10000;
@@ -17,6 +26,12 @@ internal sealed class Win32PageSettings : IDisposable
     [DllImport("winspool.drv", EntryPoint = "DeviceCapabilitiesW", CharSet = CharSet.Unicode)]
     private static extern int DeviceCapabilities(string printer, string port, short capability, IntPtr output, IntPtr devMode);
 
+    /// <summary>
+    /// تهيئة وضبط إعدادات DEVMODE لطابعة محددة بناءً على خيارات الصفحة المطلوبة (المقاس المعياري، الأبعاد المخصصة، أو الاتجاه).
+    /// </summary>
+    /// <param name="name">اسم الطابعة في نظام ويندوز.</param>
+    /// <param name="page">خيارات الصفحة المطلوبة للعملية.</param>
+    /// <exception cref="PrintPreparationException">إذا فشل فتح الطابعة أو رفض برنامج التشغيل إعدادات الورق المطلوبة.</exception>
     public Win32PageSettings(string name, PrintPageOptions? page)
     {
         if (page is null || page.PaperName is null && page.PaperWidthMm is null && page.Landscape is null) return;
@@ -63,6 +78,14 @@ internal sealed class Win32PageSettings : IDisposable
         finally { RawPrinterHelper.ClosePrinter(printer); }
     }
 
+    /// <summary>
+    /// البحث عن المعرف الرقمي لمقاس الورق (Paper ID) المدعوم من قبل برنامج تشغيل الطابعة.
+    /// </summary>
+    /// <param name="printer">مقبض الطابعة المفتوح.</param>
+    /// <param name="name">اسم الطابعة.</param>
+    /// <param name="paper">اسم مقاس الورق المطلوب مطابقتها.</param>
+    /// <returns>المعرف الرقمي المعرف في برنامج التشغيل لمقاس الورق.</returns>
+    /// <exception cref="PrintPreparationException">إذا كان مقاس الورق غير مدعوم أو تعذر قراءة قدرات الجهاز.</exception>
     private static short FindPaperId(IntPtr printer, string name, string paper)
     {
         GetPrinter(printer, 2, IntPtr.Zero, 0, out uint needed);
@@ -94,6 +117,9 @@ internal sealed class Win32PageSettings : IDisposable
         finally { Marshal.FreeHGlobal(info); }
     }
 
+    /// <summary>
+    /// تحرير الذاكرة غير المدارة المخصصة لبنية DEVMODE.
+    /// </summary>
     public void Dispose()
     {
         if (DevMode != IntPtr.Zero) Marshal.FreeHGlobal(DevMode);

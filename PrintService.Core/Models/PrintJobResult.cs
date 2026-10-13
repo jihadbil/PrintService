@@ -5,11 +5,29 @@ namespace PrintService.Core.Models;
 /// </summary>
 public class PrintJobResult
 {
+    /// <summary>
+    /// نطاق أو معرف النظام الفرعي التابع له هذا الطلب (إن وجد).
+    /// </summary>
     public string? SystemId { get; set; }
-    /// <summary>ValidationFailed, Queued, Processing, Submitted, Failed, Unknown, or Conflict.</summary>
+
+    /// <summary>
+    /// الحالة التفصيلية لمهمة الطباعة (ValidationFailed, Queued, Processing, Submitted, Failed, Unknown, Conflict, Busy).
+    /// </summary>
     public string Status { get; set; } = "ValidationFailed";
+
+    /// <summary>
+    /// عدد النسخ التي تم إرسالها وتأكيد وصولها بنجاح إلى مخزن الطباعة.
+    /// </summary>
     public int CompletedCopies { get; set; }
+
+    /// <summary>
+    /// قائمة بأرقام مهام الطباعة المسجلة في مخزن طباعة ويندوز (Spooler Job IDs) لكل نسخة تم إرسالها.
+    /// </summary>
     public List<uint> SpoolerJobIds { get; set; } = [];
+
+    /// <summary>
+    /// مسارات ملفات الإخراج الناتجة (في حال كانت الطابعة افتراضية تطبع إلى ملفات مثل PDF).
+    /// </summary>
     public List<string> OutputFiles { get; set; } = [];
     /// <summary>
     /// يشير إلى ما إذا كانت عملية إرسال أمر الطباعة قد تمت بنجاح.

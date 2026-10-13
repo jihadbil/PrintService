@@ -4,7 +4,10 @@ using PrintService.Core.Models;
 
 namespace PrintService.Infrastructure.Services;
 
-/// <summary>Native Windows GDI printer path; no System.Drawing.Printing dependency.</summary>
+/// <summary>
+/// محرك طباعة أصيل لنظام ويندوز معتمد مباشرة على واجهات Win32 GDI بدون الاعتماد على System.Drawing؛
+/// مما يجعله متوافقاً تماماً ومستقراً داخل خدمات ويندوز (Windows Services).
+/// </summary>
 public static class Win32GdiPrintEngine
 {
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
@@ -53,6 +56,16 @@ public static class Win32GdiPrintEngine
         int sourceX, int sourceY, int sourceWidth, int sourceHeight, IntPtr bits,
         ref BitmapInfo info, uint usage, uint operation);
 
+    /// <summary>
+    /// طباعة نص منسق متعدد الصفحات مع دعم كامل لاتجاه النصوص العربية والإنجليزية والتفاف الأسطر باستخدام Win32 GDI.
+    /// </summary>
+    /// <param name="printer">اسم الطابعة في نظام ويندوز.</param>
+    /// <param name="text">النص المراد طباعته.</param>
+    /// <param name="title">عنوان المهمة في مخزن ويندوز.</param>
+    /// <param name="output">مسار ملف الإخراج إن وجد، أو null للطباعة المباشرة.</param>
+    /// <param name="ct">رمز إلغاء العملية.</param>
+    /// <param name="page">خيارات مقاس الورق والهوامش والاتجاه.</param>
+    /// <returns>رقم عملية الطباعة المسجل في مخزن ويندوز (Spooler Job ID).</returns>
     public static uint PrintText(string printer, string text, string title, string? output, CancellationToken ct, PrintPageOptions? page = null) =>
         Print(printer, title, output, dc =>
         {
@@ -105,6 +118,17 @@ public static class Win32GdiPrintEngine
             finally { SelectObject(dc, previous); DeleteObject(font); }
         }, ct, page);
 
+    /// <summary>
+    /// طباعة صورة باستخدام Win32 GDI مع فك تشفيرها وتسطيح الشفافية وتكييف أبعادها وتوسيطها على الصفحة.
+    /// </summary>
+    /// <param name="printer">اسم الطابعة المستهدفة.</param>
+    /// <param name="bytes">مصفوفة بايتات ملف الصورة.</param>
+    /// <param name="title">عنوان المهمة في مخزن ويندوز.</param>
+    /// <param name="output">مسار ملف الإخراج إن وجد.</param>
+    /// <param name="ct">رمز إلغاء العملية.</param>
+    /// <param name="page">خيارات تخطيط ومقاس وهوامش الصفحة.</param>
+    /// <returns>رقم عملية الطباعة المسجل في مخزن ويندوز (Spooler Job ID).</returns>
+    /// <exception cref="InvalidOperationException">إذا كانت الصورة غير صالحة أو تعذر فك تشفيرها.</exception>
     public static uint PrintImage(string printer, byte[] bytes, string title, string? output, CancellationToken ct, PrintPageOptions? page = null)
     {
         using var encoded = SKData.CreateCopy(bytes);
@@ -136,6 +160,16 @@ public static class Win32GdiPrintEngine
         }, ct, page);
     }
 
+    /// <summary>
+    /// تنفيذ عملية الطباعة العامة عبر فتح سياق الجهاز (Device Context - DC) وبدء المستند واستدعاء دالة الرسم المخصصة ثم إغلاق المستند.
+    /// </summary>
+    /// <param name="printer">اسم الطابعة في ويندوز.</param>
+    /// <param name="title">عنوان المستند.</param>
+    /// <param name="output">مسار ملف الإخراج إن وجد.</param>
+    /// <param name="render">إجراء الرسم المستلم لمقبض سياق الجهاز (HDC).</param>
+    /// <param name="ct">رمز إلغاء العملية.</param>
+    /// <param name="page">خيارات الصفحة والورق.</param>
+    /// <returns>رقم عملية الطباعة في مخزن ويندوز.</returns>
     private static uint Print(string printer, string title, string? output, Action<IntPtr> render, CancellationToken ct, PrintPageOptions? page)
     {
         ct.ThrowIfCancellationRequested();
@@ -163,6 +197,14 @@ public static class Win32GdiPrintEngine
         finally { if (started) AbortDoc(dc); DeleteDC(dc); }
     }
 
+    /// <summary>
+    /// التحقق من أن بنية DEVMODE الخاصة بالطابعة تقبل أبعاد الورق المطلوبة بدقة دون تغييرها.
+    /// </summary>
+    /// <param name="printer">اسم الطابعة.</param>
+    /// <param name="mode">مؤشر بنية DEVMODE في الذاكرة.</param>
+    /// <param name="width">العرض المطلوب بالمليمتر.</param>
+    /// <param name="height">الارتفاع المطلوب بالمليمتر.</param>
+    /// <param name="landscape">هل الاتجاه أفقي.</param>
     internal static void ValidateDeviceMode(string printer, IntPtr mode, double width, double height, bool landscape)
     {
         IntPtr dc = CreateDC("WINSPOOL", printer, null, mode);
@@ -175,6 +217,13 @@ public static class Win32GdiPrintEngine
         finally { DeleteDC(dc); }
     }
 
+    /// <summary>
+    /// التحقق من أن أبعاد الورق المطبقة على سياق الجهاز تتطابق مع الأبعاد المطلوبة ضمن هامش سماحية 1 مم.
+    /// </summary>
+    /// <param name="dc">مقبض سياق الجهاز (HDC).</param>
+    /// <param name="width">العرض المتوقع بالمليمتر.</param>
+    /// <param name="height">الارتفاع المتوقع بالمليمتر.</param>
+    /// <exception cref="PrintPreparationException">إذا كان تعريف الطابعة لم يقبل الأبعاد المطلوبة بدقة.</exception>
     private static void ValidateDimensions(IntPtr dc, double width, double height)
     {
         int dpiX = GetDeviceCaps(dc, 88), dpiY = GetDeviceCaps(dc, 90);
@@ -184,6 +233,13 @@ public static class Win32GdiPrintEngine
             throw new PrintPreparationException($"تعريف الطابعة لم يقبل الأبعاد {width:0.0}×{height:0.0} مم؛ أعاد {actualWidth:0.0}×{actualHeight:0.0} مم.");
     }
 
+    /// <summary>
+    /// حساب حدود ومساحة الرسم الصالحة بالبكسل بعد خصم الهوامش وهوامش الجهاز الفيزيائية غير القابلة للطباعة.
+    /// </summary>
+    /// <param name="dc">مقبض سياق الجهاز (HDC).</param>
+    /// <param name="page">خيارات وهوامش الصفحة.</param>
+    /// <returns>بنية Rect تمثل مستطيل الرسم المتاح.</returns>
+    /// <exception cref="PrintPreparationException">إذا كانت الهوامش تتجاوز أبعاد الورق المتاح.</exception>
     private static Rect Bounds(IntPtr dc, PrintPageOptions? page)
     {
         int dpiX = GetDeviceCaps(dc, 88), dpiY = GetDeviceCaps(dc, 90);
@@ -201,6 +257,12 @@ public static class Win32GdiPrintEngine
         return bounds;
     }
 
+    /// <summary>
+    /// تحويل حدود الرسم إلى وحدات قياس نسبية (1/100 بوصة) لاستخدامها في محركات الرسم المتوافقة.
+    /// </summary>
+    /// <param name="dc">مقبض سياق الجهاز (HDC).</param>
+    /// <param name="margins">هوامش الصفحة.</param>
+    /// <returns>رباعي يمثل (Left, Top, Width, Height) بوحدات الرسم المئوية.</returns>
     internal static (float Left, float Top, float Width, float Height) DrawingBounds(IntPtr dc, PrintMargins margins)
     {
         var bounds = Bounds(dc, new() { Margins = margins });
@@ -209,6 +271,11 @@ public static class Win32GdiPrintEngine
             (bounds.Right - bounds.Left) * unitsX, (bounds.Bottom - bounds.Top) * unitsY);
     }
 
+    /// <summary>
+    /// التحقق من نجاح نداء Win32 API وإطلاق استثناء مناسب إذا كانت القيمة المرتجعة تشير إلى الفشل.
+    /// </summary>
+    /// <param name="result">القيمة الرقمية المرتجعة من دالة Win32.</param>
+    /// <param name="operation">اسم العملية أو الدالة للتوثيق في رسالة الاستثناء.</param>
     private static void Check(int result, string operation)
     {
         if (result <= 0) throw RawPrinterHelper.Error(operation);

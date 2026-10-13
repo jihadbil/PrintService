@@ -1,8 +1,15 @@
 namespace PrintService.Tests;
 
-// The test executable doubles as an isolated PDF process fixture. It never prints.
+/// <summary>
+/// نموذج محاكاة بديل لمحرك PDF الخارجي؛ يُستخدم أثناء الاختبارات الآلية لمحاكاة سلوك عمليات الطباعة الخارجية دون طباعة فعلية.
+/// </summary>
 internal static class PdfEngineStub
 {
+    /// <summary>
+    /// نقطة الدخول لمحاكاة استدعاء العملية الخارجية، تدعم اختبار المهلة والفشل والتحقق من خيارات الصفحة.
+    /// </summary>
+    /// <param name="args">وسائط سطر الأوامر الممررة للعملية.</param>
+    /// <returns>رمز الخروج الرقمي (Exit Code) الذي يعكس نتيجة المحاكاة.</returns>
     public static async Task<int> Main(string[] args)
     {
         if (args is ["--verify-page-options"])
